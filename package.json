@@ -1,0 +1,19 @@
+{
+  "name": "web-portfolio",
+  "version": "0.1.0",
+  "description": "Capture website screenshots (desktop + mobile) for portfolio reference. AI-callable CLI.",
+  "type": "module",
+  "scripts": {
+    "capture-site": "node cli.mjs site",
+    "capture-page": "node cli.mjs page",
+    "list": "node cli.mjs list",
+    "view": "node cli.mjs view",
+    "retry": "node cli.mjs retry",
+    "help": "node cli.mjs help"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "fast-xml-parser": "^5.7.2",
+    "playwright": "^1.59.1"
+  }
+}

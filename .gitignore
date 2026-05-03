@@ -1,0 +1,4 @@
+node_modules/
+sites/*/desktop/
+sites/*/mobile/
+.DS_Store
