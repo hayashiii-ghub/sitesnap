@@ -3,11 +3,14 @@
   "version": "0.1.0",
   "description": "Capture website screenshots (desktop + mobile) for portfolio reference. AI-callable CLI.",
   "type": "module",
+  "bin": {
+    "web-portfolio": "./cli.mjs"
+  },
   "scripts": {
-    "capture-site": "node cli.mjs site",
-    "capture-page": "node cli.mjs page",
+    "site": "node cli.mjs site",
+    "page": "node cli.mjs page",
     "list": "node cli.mjs list",
-    "view": "node cli.mjs view",
+    "open": "node cli.mjs open",
     "retry": "node cli.mjs retry",
     "help": "node cli.mjs help"
   },

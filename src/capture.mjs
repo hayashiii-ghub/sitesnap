@@ -87,9 +87,9 @@ export async function captureUrls(urls, opts = {}) {
           try {
             const r = await captureOne(browser, url, mode, siteDir, opts);
             results.push(r);
-            console.log(`[${mode}] ${my + 1}/${urls.length} ${r.skipped ? 'skip' : 'ok  '} ${url}`);
+            console.error(`[${mode}] ${my + 1}/${urls.length} ${r.skipped ? 'skip' : 'ok  '} ${url}`);
           } catch (e) {
-            console.log(`[${mode}] ${my + 1}/${urls.length} ERR  ${url} :: ${e.message}`);
+            console.error(`[${mode}] ${my + 1}/${urls.length} ERR  ${url} :: ${e.message}`);
             results.push({ url, mode, error: e.message, slug: slugify(url) });
           }
         }

@@ -1,38 +1,30 @@
 # web-portfolio
 
-ウェブサイトのスクリーンショット(デスクトップ + モバイル)を一括キャプチャして、ローカルに保管・閲覧するためのツール。**ポートフォリオ用のサイト集めを目的**として設計。
+ウェブサイトのスクリーンショット(デスクトップ + モバイル)を一括キャプチャして、ローカルに保管するCLIツール。**ポートフォリオ用のサイト集めを目的**として設計。
 
 - 📁 データはJSON + PNGファイル(DB不要)
 - 🤖 Claude Code / Codex などのAIエージェントから1コマンドで実行可能
-- 🖼 ローカルビューワー(pan/zoom/検索)付き
-- 🌐 別プロジェクトのAstroサイト等から `meta.json` を読み込んで公開可能
+- 📡 `--json` フラグで構造化出力 → エージェントが結果をパース可能
+- 🌐 別プロジェクト(Astro等)から `meta.json` を読み込んで公開ポートフォリオに統合
 
 ---
 
 ## Quick Start
 
-### 1. 初期セットアップ
 ```bash
+# 1. 依存インストール
 npm install
 npx playwright install chromium
+
+# 2. グローバルコマンドとして使えるようにする(推奨)
+npm link
+# → これで `web-portfolio <command>` がどこからでも叩ける
+
+# 3. 試しに1サイト撮ってみる
+web-portfolio site https://example.com/sitemap.xml
 ```
 
-### 2. サイトを丸ごとキャプチャ
-sitemap.xml(またはsitemap_index.xml)のURLを渡すと、全ページを自動取得します。
-```bash
-node cli.mjs site https://example.com/sitemap.xml
-```
-
-### 3. 単一ページだけキャプチャ
-```bash
-node cli.mjs page https://example.com/about
-```
-
-### 4. ビューワーを起動
-```bash
-node cli.mjs view
-# → http://localhost:3000/viewer/ をブラウザで開く
-```
+`npm link` を使わない場合は `node cli.mjs <command>` で代用可能。
 
 ---
 
@@ -40,14 +32,19 @@ node cli.mjs view
 
 | コマンド | 用途 |
 |---|---|
-| `node cli.mjs site <sitemap-url>` | sitemapから全URL展開 → 全ページキャプチャ |
-| `node cli.mjs page <url>` | 単一ページのみキャプチャ |
-| `node cli.mjs list` | キャプチャ済みサイト一覧 |
-| `node cli.mjs view [--port 3000]` | ローカルビューワー起動 |
-| `node cli.mjs retry <domain>` | 失敗したページのみ再取得 |
-| `node cli.mjs help` | ヘルプ表示 |
+| `web-portfolio site <sitemap-url>` | sitemapから全URL展開 → 全ページキャプチャ |
+| `web-portfolio page <url>` | 単一ページのみキャプチャ |
+| `web-portfolio list` | キャプチャ済みサイト一覧 |
+| `web-portfolio open <domain>` | Finderでサイトのフォルダを開く |
+| `web-portfolio retry <domain>` | 失敗したページのみ再取得 |
+| `web-portfolio help` | ヘルプ表示 |
 
-`npm run capture-site …` / `npm run view` のようにnpm script経由でも実行可能。
+すべてのコマンドに `--json` フラグを付けると **構造化JSON出力**(stdoutにJSON、進捗ログはstderr)。AIエージェントから扱いやすい形式。
+
+```bash
+web-portfolio list --json
+# → [{ "domain": "...", "pages": 45, ... }]
+```
 
 ---
 
@@ -55,14 +52,14 @@ node cli.mjs view
 
 ```
 sites/
-├── index.json                  # 全サイトのサマリ
+├── index.json                  全サイトのサマリ
 └── <domain>/
-    ├── meta.json               # ページ一覧 + 画像パス + タイトル
-    ├── desktop/<slug>.png      # デスクトップ版スクショ
-    └── mobile/<slug>.png       # モバイル版スクショ
+    ├── meta.json               ページ一覧 + 画像パス + タイトル
+    ├── desktop/<slug>.png      デスクトップ版スクショ
+    └── mobile/<slug>.png       モバイル版スクショ
 ```
 
-### meta.json のスキーマ
+### `meta.json` のスキーマ
 ```json
 {
   "domain": "example.com",
@@ -97,19 +94,17 @@ sites/
 
 ## AI Agent からの使い方
 
-Claude Code や Codex から自然言語で呼び出せます。
+### Claude Code
+本リポジトリには `.claude/skills/web-portfolio/SKILL.md` を同梱。Claude Code がこのスキルを自動的に認識し、ユーザーが「このサイト保存して: https://...」のように依頼すれば適切なコマンドを実行します。
 
-**会話例:**
-> 「このサイトを保存して: https://example.com/sitemap.xml」
-> → AIが自動で `node cli.mjs site https://example.com/sitemap.xml` を実行
+### Codex / その他のシェル実行可能なAIエージェント
+プロンプトに以下を含めるか、リポジトリのREADME.mdを読ませる:
 
-**前提:** AIエージェントは本リポジトリのルートで動作していること。
-
-**典型フロー:**
-1. ユーザー: 「○○のサイト集めて」
-2. AI: sitemap URLを推測 or 確認 → `node cli.mjs site <url>`
-3. AI: `node cli.mjs list` で結果確認
-4. AI: 失敗があれば `node cli.mjs retry <domain>`
+> このプロジェクトには `web-portfolio` CLIがある。
+> - `web-portfolio site <sitemap-url>` でサイト全体
+> - `web-portfolio page <url>` で単一ページ
+> - `--json` で構造化出力
+> 詳細は README.md / .claude/skills/web-portfolio/SKILL.md 参照
 
 ---
 
@@ -119,6 +114,17 @@ Claude Code や Codex から自然言語で呼び出せます。
 画像パスは meta.json 内が `desktop/foo.png` 形式の相対パスなので、配信時のbaseURLと組み合わせて使ってください。
 
 例: Astroの `getStaticPaths` で `meta.json` を読み、各ページを静的生成。
+
+---
+
+## 動作確認(quick check)
+
+撮影した画像をブラウザで見たい時は、Finderで開くのが手っ取り早い:
+```bash
+web-portfolio open example.com
+```
+
+複数サイトをパン/ズームで一覧したい等の高度なビューワーが必要になったら、別途Astro側で実装する想定(本リポジトリには含めない)。
 
 ---
 
