@@ -184,6 +184,6 @@ MIT © 2026 Hayashi
 
 ## リンク
 
-- [GitHubリポジトリ](https://github.com/hayashiii-ghub/web-portfolio)
-- [Issues](https://github.com/hayashiii-ghub/web-portfolio/issues)
+- [GitHubリポジトリ](https://github.com/hayashiii-ghub/sitesnap)
+- [Issues](https://github.com/hayashiii-ghub/sitesnap/issues)
 - [npm](https://www.npmjs.com/package/@hayashiii/sitesnap)

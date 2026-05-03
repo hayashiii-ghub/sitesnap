@@ -37,13 +37,13 @@
   ],
   "author": "Hayashi <hay@shigoto.dev>",
   "license": "MIT",
-  "homepage": "https://github.com/hayashiii-ghub/web-portfolio#readme",
+  "homepage": "https://github.com/hayashiii-ghub/sitesnap#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hayashiii-ghub/web-portfolio.git"
+    "url": "git+https://github.com/hayashiii-ghub/sitesnap.git"
   },
   "bugs": {
-    "url": "https://github.com/hayashiii-ghub/web-portfolio/issues"
+    "url": "https://github.com/hayashiii-ghub/sitesnap/issues"
   },
   "publishConfig": {
     "access": "public"
