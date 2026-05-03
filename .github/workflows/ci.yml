@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Smoke test - help
+        run: node cli.mjs help
+
+      - name: Smoke test - list outputs valid JSON
+        run: |
+          node cli.mjs list --json | node -e "
+            let data = '';
+            process.stdin.on('data', c => data += c);
+            process.stdin.on('end', () => {
+              const parsed = JSON.parse(data);
+              if (!Array.isArray(parsed)) { console.error('Expected array'); process.exit(1); }
+              console.log('OK: list returned array of', parsed.length, 'sites');
+            });
+          "
+
+      - name: Smoke test - exits non-zero on unknown command
+        run: |
+          if node cli.mjs nonexistent 2>/dev/null; then
+            echo "Expected non-zero exit"; exit 1
+          else
+            echo "OK: rejected unknown command"
+          fi

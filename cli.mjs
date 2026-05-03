@@ -122,7 +122,11 @@ async function cmdOpen() {
   if (!domain) { console.error('Usage: sitesnap open <domain>'); process.exit(1); }
   const dir = path.resolve(outDir, domain);
   if (!existsSync(dir)) { console.error(`No captures for ${domain} at ${dir}`); process.exit(1); }
-  spawn('open', [dir], { stdio: 'ignore', detached: true }).unref();
+  const opener =
+    process.platform === 'darwin' ? { cmd: 'open', args: [dir] } :
+    process.platform === 'win32'  ? { cmd: 'explorer', args: [dir] } :
+                                    { cmd: 'xdg-open', args: [dir] };
+  spawn(opener.cmd, opener.args, { stdio: 'ignore', detached: true }).unref();
   out({ domain, opened: dir }, (r) => console.log(`Opened: ${r.opened}`));
 }
 
