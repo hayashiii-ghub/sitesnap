@@ -22,7 +22,9 @@ description: ウェブサイトのスクリーンショット(デスクトップ
 
 ## コマンド
 
-すべてのコマンドで `--json` フラグを付けると構造化出力(stdoutに整形済みJSON、進捗ログはstderr)。
+### グローバルフラグ
+- `--json` … 構造化出力(stdoutにJSON、進捗ログはstderr)
+- `--force-visible` … スクロール連動アニメーションで隠れている要素を強制表示。**スクショが真っ白になる場合に使う**(AOS, wow.js等のライブラリ対策)。
 
 ### 1. サイト全体をキャプチャ
 URLが sitemap (例: `/sitemap.xml`, `/sitemap_index.xml`) を指している場合:
@@ -80,6 +82,7 @@ sites/
 
 - `errors[]` が空でなければ、対象URLを retry 候補としてユーザーに報告
 - `still_failing > 0` の場合は、サイト側の問題(Cloudflareブロック、認証必須等)の可能性をユーザーに伝える
+- **撮ったスクショが真っ白 / 一部空白**の場合 → `--force-visible` を付けて再キャプチャを提案
 
 ## 注意
 

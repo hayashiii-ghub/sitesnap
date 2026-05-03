@@ -39,12 +39,29 @@ web-portfolio site https://example.com/sitemap.xml
 | `web-portfolio retry <domain>` | 失敗したページのみ再取得 |
 | `web-portfolio help` | ヘルプ表示 |
 
-すべてのコマンドに `--json` フラグを付けると **構造化JSON出力**(stdoutにJSON、進捗ログはstderr)。AIエージェントから扱いやすい形式。
+### グローバルフラグ
+
+| フラグ | 用途 |
+|---|---|
+| `--json` | 構造化JSON出力(stdoutにJSON、進捗ログはstderr)。AIエージェントから扱いやすい |
+| `--force-visible` | スクロール連動アニメで隠れた要素を強制表示。**スクショが真っ白な時に使う**(AOS, wow.js 等対策) |
 
 ```bash
 web-portfolio list --json
 # → [{ "domain": "...", "pages": 45, ... }]
+
+web-portfolio site https://example.com/sitemap.xml --force-visible
+# アニメーションで真っ白になるサイトに有効
 ```
+
+### アニメーション対策(デフォルトで有効)
+
+Playwrightブラウザコンテキストに以下を自動適用しています:
+- `prefers-reduced-motion: reduce` の送信(まともなサイトはこれでアニメ無効化)
+- 全要素の `animation/transition` を 0.001s に短縮するCSS注入
+- フォント・画像のロード完了を待ってから撮影
+
+それでも真っ白なら `--force-visible` を試してください。
 
 ---
 

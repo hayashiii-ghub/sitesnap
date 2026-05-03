@@ -22,18 +22,22 @@ Usage:
 Global flags:
   --json                                Output machine-readable JSON to stdout
                                         (progress logs go to stderr)
+  --force-visible                       Force-show elements hidden by scroll-reveal libraries
+                                        (AOS, wow.js, etc.) Use when screenshots come out blank.
 
 Examples:
   web-portfolio site https://example.com/sitemap.xml
   web-portfolio page https://example.com/about
   web-portfolio list --json
   web-portfolio open example.com
+  web-portfolio site https://example.com/sitemap.xml --force-visible
 `;
 
 const argv = process.argv.slice(2);
 const sub = argv[0];
 const json = argv.includes('--json');
-const args = argv.slice(1).filter(a => a !== '--json');
+const forceVisible = argv.includes('--force-visible');
+const args = argv.slice(1).filter(a => a !== '--json' && a !== '--force-visible');
 
 async function readMeta(domain) {
   const p = path.join(DEFAULTS.sitesDir, domain, 'meta.json');
@@ -56,7 +60,7 @@ async function cmdSite() {
   const urls = await expandSitemap(sitemapUrl);
   console.error(`Found ${urls.length} URLs`);
   if (urls.length === 0) { out({ urls: 0 }, () => console.log('No URLs found.')); return; }
-  const { domain, siteDir, results } = await captureUrls(urls);
+  const { domain, siteDir, results } = await captureUrls(urls, { forceVisible });
   const meta = await buildSiteMeta({ domain, siteDir, urls, source: sitemapUrl, results });
   await buildIndex();
   const captured = meta.pages.filter(p => p.desktop || p.mobile).length;
@@ -70,7 +74,7 @@ async function cmdSite() {
 async function cmdPage() {
   const url = args[0];
   if (!url) { console.error('Usage: web-portfolio page <url>'); process.exit(1); }
-  const { domain, siteDir, results } = await captureUrls([url]);
+  const { domain, siteDir, results } = await captureUrls([url], { forceVisible });
   const existing = (await readMeta(domain))?.pages.map(p => p.url) || [];
   const allUrls = [...new Set([...existing, url])];
   const meta = await buildSiteMeta({ domain, siteDir, urls: allUrls, source: null, results });
@@ -119,7 +123,7 @@ async function cmdRetry() {
     return;
   }
   console.error(`Retrying ${failedUrls.length} pages...`);
-  const { siteDir, results } = await captureUrls(failedUrls, { force: true });
+  const { siteDir, results } = await captureUrls(failedUrls, { force: true, forceVisible });
   const allUrls = meta.pages.map(p => p.url);
   const newMeta = await buildSiteMeta({ domain, siteDir, urls: allUrls, source: meta.source, results });
   await buildIndex();

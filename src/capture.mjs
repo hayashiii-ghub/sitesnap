@@ -39,6 +39,25 @@ async function autoScroll(page) {
   await page.waitForTimeout(DEFAULTS.postScrollWait);
 }
 
+const FREEZE_ANIMATIONS_CSS = `
+  *, *::before, *::after {
+    animation-duration: 0.001s !important;
+    animation-delay: 0s !important;
+    transition-duration: 0.001s !important;
+    transition-delay: 0s !important;
+  }
+`;
+
+const FORCE_VISIBLE_CSS = `
+  [data-aos], [data-sr], .reveal, .scroll-reveal,
+  .wow, .animated, [class*="fadeIn"], [class*="slideIn"],
+  [class*="fade-in"], [class*="slide-in"] {
+    opacity: 1 !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
+`;
+
 async function captureOne(browser, url, mode, siteDir, opts = {}) {
   const slug = slugify(url);
   const file = path.join(siteDir, mode, `${slug}.png`);
@@ -52,13 +71,28 @@ async function captureOne(browser, url, mode, siteDir, opts = {}) {
     ...viewportFor(mode),
     locale: DEFAULTS.locale,
     timezoneId: DEFAULTS.timezone,
+    reducedMotion: 'reduce',
   });
   const page = await ctx.newPage();
   let title = '';
   try {
     await page.goto(url, { waitUntil: 'networkidle', timeout: DEFAULTS.navigationTimeout });
     title = await page.title();
+
+    await page.addStyleTag({ content: FREEZE_ANIMATIONS_CSS });
+    if (opts.forceVisible) {
+      await page.addStyleTag({ content: FORCE_VISIBLE_CSS });
+    }
+
     await autoScroll(page);
+
+    await page.evaluate(() => document.fonts?.ready).catch(() => {});
+    await page.waitForFunction(
+      () => [...document.images].every(img => img.complete),
+      null,
+      { timeout: 10000 }
+    ).catch(() => {});
+
     await page.screenshot({ path: file, fullPage: true });
   } finally {
     await ctx.close();
