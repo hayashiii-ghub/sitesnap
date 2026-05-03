@@ -9,15 +9,15 @@ import { buildSiteMeta, buildIndex } from './src/meta.mjs';
 import { DEFAULTS } from './src/config.mjs';
 
 const HELP = `
-web-portfolio — capture website screenshots for portfolio reference
+sitesnap — capture website screenshots for portfolio reference
 
 Usage:
-  web-portfolio site <sitemap-url>     Capture all URLs from a sitemap
-  web-portfolio page <url>              Capture a single page
-  web-portfolio list                    List captured sites
-  web-portfolio open <domain>           Open captured screenshots in Finder
-  web-portfolio retry <domain>          Re-capture failed/missing pages
-  web-portfolio help                    Show this help
+  sitesnap site <sitemap-url>     Capture all URLs from a sitemap
+  sitesnap page <url>              Capture a single page
+  sitesnap list                    List captured sites
+  sitesnap open <domain>           Open captured screenshots in Finder
+  sitesnap retry <domain>          Re-capture failed/missing pages
+  sitesnap help                    Show this help
 
 Global flags:
   --json                                Output machine-readable JSON to stdout
@@ -25,14 +25,14 @@ Global flags:
   --force-visible                       Force-show elements hidden by scroll-reveal libraries
                                         (AOS, wow.js, etc.) Use when screenshots come out blank.
   --out <dir>                           Output directory (default: ./sites/ in current working dir).
-                                        Also configurable via WEB_PORTFOLIO_OUT env var.
+                                        Also configurable via SITESNAP_OUT env var.
 
 Examples:
-  web-portfolio site https://example.com/sitemap.xml
-  web-portfolio page https://example.com/about --out ~/captures
-  web-portfolio list --json
-  web-portfolio open example.com
-  web-portfolio site https://example.com/sitemap.xml --force-visible
+  sitesnap site https://example.com/sitemap.xml
+  sitesnap page https://example.com/about --out ~/captures
+  sitesnap list --json
+  sitesnap open example.com
+  sitesnap site https://example.com/sitemap.xml --force-visible
 `;
 
 const argv = process.argv.slice(2);
@@ -41,7 +41,7 @@ const sub = argv[0];
 const json = argv.includes('--json');
 const forceVisible = argv.includes('--force-visible');
 
-let outDir = process.env.WEB_PORTFOLIO_OUT || DEFAULTS.sitesDir;
+let outDir = process.env.SITESNAP_OUT || DEFAULTS.sitesDir;
 const flagSet = new Set(['--json', '--force-visible']);
 const args = [];
 for (let i = 1; i < argv.length; i++) {
@@ -71,7 +71,7 @@ function out(obj, humanFn) {
 
 async function cmdSite() {
   const sitemapUrl = args[0];
-  if (!sitemapUrl) { console.error('Usage: web-portfolio site <sitemap-url>'); process.exit(1); }
+  if (!sitemapUrl) { console.error('Usage: sitesnap site <sitemap-url>'); process.exit(1); }
   console.error(`Expanding sitemap: ${sitemapUrl}`);
   const urls = await expandSitemap(sitemapUrl);
   console.error(`Found ${urls.length} URLs`);
@@ -89,7 +89,7 @@ async function cmdSite() {
 
 async function cmdPage() {
   const url = args[0];
-  if (!url) { console.error('Usage: web-portfolio page <url>'); process.exit(1); }
+  if (!url) { console.error('Usage: sitesnap page <url>'); process.exit(1); }
   const { domain, siteDir, results } = await captureUrls([url], { forceVisible, outDir });
   const existing = (await readMeta(domain))?.pages.map(p => p.url) || [];
   const allUrls = [...new Set([...existing, url])];
@@ -119,7 +119,7 @@ async function cmdList() {
 
 async function cmdOpen() {
   const domain = args[0];
-  if (!domain) { console.error('Usage: web-portfolio open <domain>'); process.exit(1); }
+  if (!domain) { console.error('Usage: sitesnap open <domain>'); process.exit(1); }
   const dir = path.resolve(outDir, domain);
   if (!existsSync(dir)) { console.error(`No captures for ${domain} at ${dir}`); process.exit(1); }
   spawn('open', [dir], { stdio: 'ignore', detached: true }).unref();
@@ -128,7 +128,7 @@ async function cmdOpen() {
 
 async function cmdRetry() {
   const domain = args[0];
-  if (!domain) { console.error('Usage: web-portfolio retry <domain>'); process.exit(1); }
+  if (!domain) { console.error('Usage: sitesnap retry <domain>'); process.exit(1); }
   const meta = await readMeta(domain);
   if (!meta) { console.error(`No meta.json at ${path.join(outDir, domain)}`); process.exit(1); }
   const failedUrls = meta.pages

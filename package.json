@@ -1,10 +1,10 @@
 {
-  "name": "@hayashiii/web-portfolio",
+  "name": "@hayashiii/sitesnap",
   "version": "0.1.0",
   "description": "AI-friendly CLI for capturing website screenshots (desktop + mobile) with sitemap support and per-domain organization. Built for portfolio reference collection.",
   "type": "module",
   "bin": {
-    "web-portfolio": "./cli.mjs"
+    "sitesnap": "cli.mjs"
   },
   "files": [
     "cli.mjs",

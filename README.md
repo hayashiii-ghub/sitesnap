@@ -1,6 +1,6 @@
 > 🇯🇵 [日本語版](./README.ja.md)
 
-# @hayashiii/web-portfolio
+# @hayashiii/sitesnap
 
 AI-friendly CLI for capturing website screenshots (desktop + mobile) with sitemap support and per-domain organization. Built for **portfolio reference collection**.
 
@@ -15,9 +15,9 @@ AI-friendly CLI for capturing website screenshots (desktop + mobile) with sitema
 
 ```bash
 # global install (recommended)
-npm install -g @hayashiii/web-portfolio
-# or: pnpm add -g @hayashiii/web-portfolio
-# or: yarn global add @hayashiii/web-portfolio
+npm install -g @hayashiii/sitesnap
+# or: pnpm add -g @hayashiii/sitesnap
+# or: yarn global add @hayashiii/sitesnap
 
 # install Playwright's Chromium browser (one-time)
 npx playwright install chromium
@@ -31,16 +31,16 @@ Requires **Node.js 18+**.
 
 ```bash
 # capture an entire site from its sitemap
-web-portfolio site https://example.com/sitemap.xml
+sitesnap site https://example.com/sitemap.xml
 
 # capture a single page
-web-portfolio page https://example.com/about
+sitesnap page https://example.com/about
 
 # list what you've captured so far
-web-portfolio list
+sitesnap list
 
 # open a captured site's folder in Finder (macOS)
-web-portfolio open example.com
+sitesnap open example.com
 ```
 
 ---
@@ -49,12 +49,12 @@ web-portfolio open example.com
 
 | Command | Description |
 |---|---|
-| `web-portfolio site <sitemap-url>` | Expand sitemap → capture every URL |
-| `web-portfolio page <url>` | Capture a single page |
-| `web-portfolio list` | List captured sites |
-| `web-portfolio open <domain>` | Open the site's folder in Finder |
-| `web-portfolio retry <domain>` | Re-capture pages that failed previously |
-| `web-portfolio help` | Show help |
+| `sitesnap site <sitemap-url>` | Expand sitemap → capture every URL |
+| `sitesnap page <url>` | Capture a single page |
+| `sitesnap list` | List captured sites |
+| `sitesnap open <domain>` | Open the site's folder in Finder |
+| `sitesnap retry <domain>` | Re-capture pages that failed previously |
+| `sitesnap help` | Show help |
 
 ### Global flags
 
@@ -62,13 +62,13 @@ web-portfolio open example.com
 |---|---|
 | `--json` | Output structured JSON to stdout (progress logs go to stderr). Easy for AI agents to parse. |
 | `--force-visible` | Force-show elements hidden by scroll-reveal libraries (AOS, wow.js, etc.). Use when screenshots come out blank. |
-| `--out <dir>` | Output directory (default: `./sites/` in current working dir). Also configurable via `WEB_PORTFOLIO_OUT` env var. |
+| `--out <dir>` | Output directory (default: `./sites/` in current working dir). Also configurable via `SITESNAP_OUT` env var. |
 
 ```bash
-web-portfolio list --json
+sitesnap list --json
 # → [{ "domain": "...", "pages": 45, ... }]
 
-web-portfolio site https://example.com/sitemap.xml --force-visible --out ~/captures
+sitesnap site https://example.com/sitemap.xml --force-visible --out ~/captures
 ```
 
 ### Animation handling (enabled by default)
@@ -122,16 +122,16 @@ sites/                              (or wherever --out points)
 
 ### Claude Code
 
-This package ships with a skill at `.claude/skills/web-portfolio/SKILL.md` (in the source repo). Drop the same skill file into a project's `.claude/skills/` to enable native invocation:
+This package ships with a skill at `.claude/skills/sitesnap/SKILL.md` (in the source repo). Drop the same skill file into a project's `.claude/skills/` to enable native invocation:
 
 > User: "Capture this site for me: https://example.com/sitemap.xml"
-> Claude Code automatically runs `web-portfolio site …`
+> Claude Code automatically runs `sitesnap site …`
 
 ### Codex / other shell-capable agents
 
 Tell the agent the CLI exists and what it does — the `--json` flag returns easily-parseable output. Example prompt fragment:
 
-> The `web-portfolio` CLI is available. Use `web-portfolio site <sitemap-url> --json` to capture an entire site, or `web-portfolio page <url> --json` for a single page. Output is JSON to stdout, progress logs to stderr.
+> The `sitesnap` CLI is available. Use `sitesnap site <sitemap-url> --json` to capture an entire site, or `sitesnap page <url> --json` for a single page. Output is JSON to stdout, progress logs to stderr.
 
 ---
 
@@ -170,7 +170,7 @@ Image paths in `meta.json` are relative (`desktop/<slug>.png`), so combine with 
 
 - **Screenshots are not pushed to git** by default — you should `.gitignore` the image folders. The `meta.json` files are small and tracking them is recommended.
 - **Login-protected pages are not yet supported** — Playwright's `storageState` integration is on the roadmap.
-- **Heavy SPAs** are waited on with `networkidle` + scroll, but if pages slip through, use `web-portfolio retry <domain>` to re-capture only failed ones.
+- **Heavy SPAs** are waited on with `networkidle` + scroll, but if pages slip through, use `sitesnap retry <domain>` to re-capture only failed ones.
 
 ---
 
@@ -184,4 +184,4 @@ MIT © 2026 Hayashi
 
 - [GitHub repository](https://github.com/hayashiii-ghub/web-portfolio)
 - [Issues](https://github.com/hayashiii-ghub/web-portfolio/issues)
-- [npm](https://www.npmjs.com/package/@hayashiii/web-portfolio)
+- [npm](https://www.npmjs.com/package/@hayashiii/sitesnap)

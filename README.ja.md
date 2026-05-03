@@ -1,6 +1,6 @@
 > 🇬🇧 [English](./README.md)
 
-# @hayashiii/web-portfolio
+# @hayashiii/sitesnap
 
 ウェブサイトのスクリーンショット(デスクトップ + モバイル)を一括キャプチャしてローカルに保管する、AIエージェントフレンドリーなCLIツール。**ポートフォリオ用のサイト集めを目的**として設計。
 
@@ -15,9 +15,9 @@
 
 ```bash
 # グローバルインストール(推奨)
-npm install -g @hayashiii/web-portfolio
-# または: pnpm add -g @hayashiii/web-portfolio
-# または: yarn global add @hayashiii/web-portfolio
+npm install -g @hayashiii/sitesnap
+# または: pnpm add -g @hayashiii/sitesnap
+# または: yarn global add @hayashiii/sitesnap
 
 # Playwright の Chromium ブラウザを取得(初回のみ)
 npx playwright install chromium
@@ -31,16 +31,16 @@ npx playwright install chromium
 
 ```bash
 # サイトマップから全ページを一気にキャプチャ
-web-portfolio site https://example.com/sitemap.xml
+sitesnap site https://example.com/sitemap.xml
 
 # 1ページだけ
-web-portfolio page https://example.com/about
+sitesnap page https://example.com/about
 
 # キャプチャ済みのサイト一覧
-web-portfolio list
+sitesnap list
 
 # サイトのフォルダを Finder で開く(macOS)
-web-portfolio open example.com
+sitesnap open example.com
 ```
 
 ---
@@ -49,12 +49,12 @@ web-portfolio open example.com
 
 | コマンド | 用途 |
 |---|---|
-| `web-portfolio site <sitemap-url>` | sitemapから全URL展開 → 全ページキャプチャ |
-| `web-portfolio page <url>` | 単一ページのみキャプチャ |
-| `web-portfolio list` | キャプチャ済みサイト一覧 |
-| `web-portfolio open <domain>` | Finderでサイトのフォルダを開く |
-| `web-portfolio retry <domain>` | 失敗したページのみ再取得 |
-| `web-portfolio help` | ヘルプ表示 |
+| `sitesnap site <sitemap-url>` | sitemapから全URL展開 → 全ページキャプチャ |
+| `sitesnap page <url>` | 単一ページのみキャプチャ |
+| `sitesnap list` | キャプチャ済みサイト一覧 |
+| `sitesnap open <domain>` | Finderでサイトのフォルダを開く |
+| `sitesnap retry <domain>` | 失敗したページのみ再取得 |
+| `sitesnap help` | ヘルプ表示 |
 
 ### グローバルフラグ
 
@@ -62,13 +62,13 @@ web-portfolio open example.com
 |---|---|
 | `--json` | 構造化JSON出力(stdoutにJSON、進捗ログはstderr)。AIエージェントから扱いやすい |
 | `--force-visible` | スクロール連動アニメで隠れた要素を強制表示。**スクショが真っ白な時に使う**(AOS, wow.js 等対策) |
-| `--out <dir>` | 出力先ディレクトリ(デフォルト: カレントディレクトリの `./sites/`)。`WEB_PORTFOLIO_OUT` 環境変数でも指定可 |
+| `--out <dir>` | 出力先ディレクトリ(デフォルト: カレントディレクトリの `./sites/`)。`SITESNAP_OUT` 環境変数でも指定可 |
 
 ```bash
-web-portfolio list --json
+sitesnap list --json
 # → [{ "domain": "...", "pages": 45, ... }]
 
-web-portfolio site https://example.com/sitemap.xml --force-visible --out ~/captures
+sitesnap site https://example.com/sitemap.xml --force-visible --out ~/captures
 ```
 
 ### アニメーション対策(デフォルトで有効)
@@ -121,18 +121,18 @@ sites/                              (--out で変更可)
 
 ### Claude Code
 
-ソースリポジトリには `.claude/skills/web-portfolio/SKILL.md` が同梱されています。同じファイルを自分のプロジェクトの `.claude/skills/` にコピーすればネイティブで呼び出せるようになります:
+ソースリポジトリには `.claude/skills/sitesnap/SKILL.md` が同梱されています。同じファイルを自分のプロジェクトの `.claude/skills/` にコピーすればネイティブで呼び出せるようになります:
 
 > ハヤシさん: 「このサイト保存して: https://example.com/sitemap.xml」
-> Claude Code が自動的に `web-portfolio site …` を実行
+> Claude Code が自動的に `sitesnap site …` を実行
 
 ### Codex / その他のシェル実行可能なAIエージェント
 
 `--json` フラグで構造化出力できるので、エージェントに以下のような指示を渡すだけで使えます:
 
-> このCLIには `web-portfolio` コマンドが使える。
-> - `web-portfolio site <sitemap-url> --json` でサイト全体
-> - `web-portfolio page <url> --json` で単一ページ
+> このCLIには `sitesnap` コマンドが使える。
+> - `sitesnap site <sitemap-url> --json` でサイト全体
+> - `sitesnap page <url> --json` で単一ページ
 > 出力はstdoutにJSON、進捗ログはstderr。
 
 ---
@@ -172,7 +172,7 @@ export function getStaticPaths() {
 
 - **スクショ画像はGit管理外推奨**。`meta.json` だけGit管理に乗せるのが基本(画像はサイズ大、生成物として扱う)
 - **ログイン必須サイト**は現状未対応(今後 Playwright の `storageState` で対応予定)
-- **JavaScriptを大量に使うSPA**は `networkidle` で待機してますが、撮り逃しがあれば `web-portfolio retry <domain>` で再取得を
+- **JavaScriptを大量に使うSPA**は `networkidle` で待機してますが、撮り逃しがあれば `sitesnap retry <domain>` で再取得を
 
 ---
 
@@ -186,4 +186,4 @@ MIT © 2026 Hayashi
 
 - [GitHubリポジトリ](https://github.com/hayashiii-ghub/web-portfolio)
 - [Issues](https://github.com/hayashiii-ghub/web-portfolio/issues)
-- [npm](https://www.npmjs.com/package/@hayashiii/web-portfolio)
+- [npm](https://www.npmjs.com/package/@hayashiii/sitesnap)

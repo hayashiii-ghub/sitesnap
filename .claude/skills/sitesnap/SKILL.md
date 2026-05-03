@@ -1,9 +1,9 @@
 ---
-name: web-portfolio
+name: sitesnap
 description: ウェブサイトのスクリーンショット(デスクトップ+モバイル)を一括キャプチャしてローカルに保管するCLIツール。ユーザーが「このサイト保存して」「このページ撮って」「ポートフォリオ用に集めて」など、サイト・ページの記録を依頼した時に使用。
 ---
 
-# web-portfolio スキル
+# sitesnap スキル
 
 ウェブサイトのスクリーンショットをキャプチャし、`sites/<domain>/` 配下に保管するCLIツール。
 
@@ -18,43 +18,46 @@ description: ウェブサイトのスクリーンショット(デスクトップ
 
 ## 前提
 
-このスキルは **本リポジトリ(web-portfolio)のルートで実行されること** を想定。`npm install` と `npx playwright install chromium` が完了している必要があります。
+`sitesnap` がグローバルインストール済み(`npm install -g @hayashiii/sitesnap`)。`npx playwright install chromium` も実行済みであること。
+
+ローカルclone状態の場合は `node cli.mjs ...` で代用可。
 
 ## コマンド
 
 ### グローバルフラグ
 - `--json` … 構造化出力(stdoutにJSON、進捗ログはstderr)
 - `--force-visible` … スクロール連動アニメーションで隠れている要素を強制表示。**スクショが真っ白になる場合に使う**(AOS, wow.js等のライブラリ対策)。
+- `--out <dir>` … 出力先ディレクトリ(デフォルト: カレントディレクトリの `./sites/`)
 
 ### 1. サイト全体をキャプチャ
 URLが sitemap (例: `/sitemap.xml`, `/sitemap_index.xml`) を指している場合:
 ```bash
-node cli.mjs site <sitemap-url> --json
+sitesnap site <sitemap-url> --json
 ```
 出力: `{ domain, source, pages, captured_pages, errors[] }`
 
 ### 2. 単一ページをキャプチャ
 通常のページURLの場合:
 ```bash
-node cli.mjs page <url> --json
+sitesnap page <url> --json
 ```
 出力: `{ domain, url, desktop, mobile, errors[] }`
 
 ### 3. キャプチャ済みサイト一覧
 ```bash
-node cli.mjs list --json
+sitesnap list --json
 ```
 出力: `[{ domain, source, captured_at, pages, captured_pages }, ...]`
 
 ### 4. 失敗ページの再取得
 ```bash
-node cli.mjs retry <domain> --json
+sitesnap retry <domain> --json
 ```
 出力: `{ domain, retried, still_failing }`
 
 ### 5. Finderでスクショフォルダを開く
 ```bash
-node cli.mjs open <domain>
+sitesnap open <domain>
 ```
 
 ## 判断基準
@@ -68,10 +71,10 @@ node cli.mjs open <domain>
 ## 出力データの場所
 
 ```
-sites/
-├── index.json                  全サイトのサマリ
+sites/                              (--out で変更可)
+├── index.json                      全サイトのサマリ
 └── <domain>/
-    ├── meta.json               ページ一覧 + タイトル + 画像パス
+    ├── meta.json                   ページ一覧 + タイトル + 画像パス
     ├── desktop/<slug>.png
     └── mobile/<slug>.png
 ```
