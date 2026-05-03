@@ -104,7 +104,8 @@ export async function captureUrls(urls, opts = {}) {
   if (urls.length === 0) throw new Error('No URLs provided');
 
   const domain = domainOf(urls[0]);
-  const siteDir = path.join(DEFAULTS.sitesDir, domain);
+  const baseDir = opts.outDir || DEFAULTS.sitesDir;
+  const siteDir = path.join(baseDir, domain);
   await mkdir(path.join(siteDir, 'desktop'), { recursive: true });
   await mkdir(path.join(siteDir, 'mobile'), { recursive: true });
 

@@ -1,10 +1,20 @@
 {
-  "name": "web-portfolio",
+  "name": "@hayashiii/web-portfolio",
   "version": "0.1.0",
-  "description": "Capture website screenshots (desktop + mobile) for portfolio reference. AI-callable CLI.",
+  "description": "AI-friendly CLI for capturing website screenshots (desktop + mobile) with sitemap support and per-domain organization. Built for portfolio reference collection.",
   "type": "module",
   "bin": {
     "web-portfolio": "./cli.mjs"
+  },
+  "files": [
+    "cli.mjs",
+    "src/",
+    "README.md",
+    "README.ja.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
   },
   "scripts": {
     "site": "node cli.mjs site",
@@ -14,7 +24,30 @@
     "retry": "node cli.mjs retry",
     "help": "node cli.mjs help"
   },
+  "keywords": [
+    "screenshot",
+    "playwright",
+    "sitemap",
+    "portfolio",
+    "cli",
+    "ai-agent",
+    "claude-code",
+    "web-archive",
+    "responsive"
+  ],
+  "author": "Hayashi <hay@shigoto.dev>",
   "license": "MIT",
+  "homepage": "https://github.com/hayashiii-ghub/web-portfolio#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hayashiii-ghub/web-portfolio.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hayashiii-ghub/web-portfolio/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "fast-xml-parser": "^5.7.2",
     "playwright": "^1.59.1"

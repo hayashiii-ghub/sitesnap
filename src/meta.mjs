@@ -65,8 +65,7 @@ export async function buildSiteMeta({ domain, siteDir, urls, source, results }) 
   return meta;
 }
 
-export async function buildIndex() {
-  const sitesDir = DEFAULTS.sitesDir;
+export async function buildIndex(sitesDir = DEFAULTS.sitesDir) {
   if (!existsSync(sitesDir)) return [];
   const entries = await readdir(sitesDir, { withFileTypes: true });
   const sites = [];

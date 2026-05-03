@@ -1,82 +1,101 @@
-# web-portfolio
+> 🇯🇵 [日本語版](./README.ja.md)
 
-ウェブサイトのスクリーンショット(デスクトップ + モバイル)を一括キャプチャして、ローカルに保管するCLIツール。**ポートフォリオ用のサイト集めを目的**として設計。
+# @hayashiii/web-portfolio
 
-- 📁 データはJSON + PNGファイル(DB不要)
-- 🤖 Claude Code / Codex などのAIエージェントから1コマンドで実行可能
-- 📡 `--json` フラグで構造化出力 → エージェントが結果をパース可能
-- 🌐 別プロジェクト(Astro等)から `meta.json` を読み込んで公開ポートフォリオに統合
+AI-friendly CLI for capturing website screenshots (desktop + mobile) with sitemap support and per-domain organization. Built for **portfolio reference collection**.
+
+- 📁 Plain JSON + PNG output (no database)
+- 🤖 Designed for AI agents (Claude Code / Codex) — ships with a Claude Code skill
+- 📡 `--json` flag for structured stdout, parseable by any agent
+- 🌐 `meta.json` schema designed for static site generators (Astro/Next/etc.)
+
+---
+
+## Install
+
+```bash
+# global install (recommended)
+npm install -g @hayashiii/web-portfolio
+# or: pnpm add -g @hayashiii/web-portfolio
+# or: yarn global add @hayashiii/web-portfolio
+
+# install Playwright's Chromium browser (one-time)
+npx playwright install chromium
+```
+
+Requires **Node.js 18+**.
 
 ---
 
 ## Quick Start
 
 ```bash
-# 1. 依存インストール
-npm install
-npx playwright install chromium
-
-# 2. グローバルコマンドとして使えるようにする(推奨)
-npm link
-# → これで `web-portfolio <command>` がどこからでも叩ける
-
-# 3. 試しに1サイト撮ってみる
+# capture an entire site from its sitemap
 web-portfolio site https://example.com/sitemap.xml
-```
 
-`npm link` を使わない場合は `node cli.mjs <command>` で代用可能。
+# capture a single page
+web-portfolio page https://example.com/about
+
+# list what you've captured so far
+web-portfolio list
+
+# open a captured site's folder in Finder (macOS)
+web-portfolio open example.com
+```
 
 ---
 
-## コマンド一覧
+## Commands
 
-| コマンド | 用途 |
+| Command | Description |
 |---|---|
-| `web-portfolio site <sitemap-url>` | sitemapから全URL展開 → 全ページキャプチャ |
-| `web-portfolio page <url>` | 単一ページのみキャプチャ |
-| `web-portfolio list` | キャプチャ済みサイト一覧 |
-| `web-portfolio open <domain>` | Finderでサイトのフォルダを開く |
-| `web-portfolio retry <domain>` | 失敗したページのみ再取得 |
-| `web-portfolio help` | ヘルプ表示 |
+| `web-portfolio site <sitemap-url>` | Expand sitemap → capture every URL |
+| `web-portfolio page <url>` | Capture a single page |
+| `web-portfolio list` | List captured sites |
+| `web-portfolio open <domain>` | Open the site's folder in Finder |
+| `web-portfolio retry <domain>` | Re-capture pages that failed previously |
+| `web-portfolio help` | Show help |
 
-### グローバルフラグ
+### Global flags
 
-| フラグ | 用途 |
+| Flag | Description |
 |---|---|
-| `--json` | 構造化JSON出力(stdoutにJSON、進捗ログはstderr)。AIエージェントから扱いやすい |
-| `--force-visible` | スクロール連動アニメで隠れた要素を強制表示。**スクショが真っ白な時に使う**(AOS, wow.js 等対策) |
+| `--json` | Output structured JSON to stdout (progress logs go to stderr). Easy for AI agents to parse. |
+| `--force-visible` | Force-show elements hidden by scroll-reveal libraries (AOS, wow.js, etc.). Use when screenshots come out blank. |
+| `--out <dir>` | Output directory (default: `./sites/` in current working dir). Also configurable via `WEB_PORTFOLIO_OUT` env var. |
 
 ```bash
 web-portfolio list --json
 # → [{ "domain": "...", "pages": 45, ... }]
 
-web-portfolio site https://example.com/sitemap.xml --force-visible
-# アニメーションで真っ白になるサイトに有効
+web-portfolio site https://example.com/sitemap.xml --force-visible --out ~/captures
 ```
 
-### アニメーション対策(デフォルトで有効)
+### Animation handling (enabled by default)
 
-Playwrightブラウザコンテキストに以下を自動適用しています:
-- `prefers-reduced-motion: reduce` の送信(まともなサイトはこれでアニメ無効化)
-- 全要素の `animation/transition` を 0.001s に短縮するCSS注入
-- フォント・画像のロード完了を待ってから撮影
+The capturer applies the following on every shot:
 
-それでも真っ白なら `--force-visible` を試してください。
+- Sets `prefers-reduced-motion: reduce` on the browser context (sites that respect this skip animations entirely).
+- Injects CSS that shrinks all `animation` / `transition` durations to `0.001s`.
+- Waits for `document.fonts.ready` and all `<img>` elements to finish loading.
+
+If a site still produces blank screenshots (typically scroll-reveal libraries like AOS), pass `--force-visible` to aggressively unhide those elements.
 
 ---
 
-## 出力構造
+## Output structure
 
 ```
-sites/
-├── index.json                  全サイトのサマリ
+sites/                              (or wherever --out points)
+├── index.json                      summary across all sites
 └── <domain>/
-    ├── meta.json               ページ一覧 + 画像パス + タイトル
-    ├── desktop/<slug>.png      デスクトップ版スクショ
-    └── mobile/<slug>.png       モバイル版スクショ
+    ├── meta.json                   page list + titles + image paths
+    ├── desktop/<slug>.png          desktop screenshots
+    └── mobile/<slug>.png           mobile screenshots
 ```
 
-### `meta.json` のスキーマ
+### `meta.json` schema
+
 ```json
 {
   "domain": "example.com",
@@ -86,7 +105,7 @@ sites/
     {
       "url": "https://example.com/",
       "slug": "index",
-      "title": "ページタイトル",
+      "title": "Example",
       "desktop": "desktop/index.png",
       "mobile": "mobile/index.png",
       "captured_at": "2026-05-01T12:00:00Z",
@@ -99,54 +118,70 @@ sites/
 
 ---
 
-## 設定変更
-
-`src/config.mjs` でデフォルト値を調整できます:
-- `viewports.desktop` … デスクトップのビューポートサイズ
-- `viewports.mobile` … モバイルのデバイス名 (Playwright `devices` 参照)
-- `concurrency` … 並列キャプチャ数(デフォルト3)
-- `navigationTimeout` … ページ読み込みタイムアウト(ms)
-
----
-
-## AI Agent からの使い方
+## AI Agent integration
 
 ### Claude Code
-本リポジトリには `.claude/skills/web-portfolio/SKILL.md` を同梱。Claude Code がこのスキルを自動的に認識し、ユーザーが「このサイト保存して: https://...」のように依頼すれば適切なコマンドを実行します。
 
-### Codex / その他のシェル実行可能なAIエージェント
-プロンプトに以下を含めるか、リポジトリのREADME.mdを読ませる:
+This package ships with a skill at `.claude/skills/web-portfolio/SKILL.md` (in the source repo). Drop the same skill file into a project's `.claude/skills/` to enable native invocation:
 
-> このプロジェクトには `web-portfolio` CLIがある。
-> - `web-portfolio site <sitemap-url>` でサイト全体
-> - `web-portfolio page <url>` で単一ページ
-> - `--json` で構造化出力
-> 詳細は README.md / .claude/skills/web-portfolio/SKILL.md 参照
+> User: "Capture this site for me: https://example.com/sitemap.xml"
+> Claude Code automatically runs `web-portfolio site …`
 
----
+### Codex / other shell-capable agents
 
-## 公開ポートフォリオサイトへの統合
+Tell the agent the CLI exists and what it does — the `--json` flag returns easily-parseable output. Example prompt fragment:
 
-別リポジトリ(Astro等)から `sites/<domain>/meta.json` を読み込んで動的にページ生成する想定。
-画像パスは meta.json 内が `desktop/foo.png` 形式の相対パスなので、配信時のbaseURLと組み合わせて使ってください。
-
-例: Astroの `getStaticPaths` で `meta.json` を読み、各ページを静的生成。
+> The `web-portfolio` CLI is available. Use `web-portfolio site <sitemap-url> --json` to capture an entire site, or `web-portfolio page <url> --json` for a single page. Output is JSON to stdout, progress logs to stderr.
 
 ---
 
-## 動作確認(quick check)
+## Configuration
 
-撮影した画像をブラウザで見たい時は、Finderで開くのが手っ取り早い:
-```bash
-web-portfolio open example.com
+Defaults live in `src/config.mjs` (in the source repo). When using as a globally-installed CLI, you can fork the package or contribute upstream to adjust:
+
+- `viewports.desktop` — desktop viewport (width × height, deviceScaleFactor)
+- `viewports.mobile` — Playwright device preset name (e.g. `"iPhone 13"`)
+- `concurrency` — parallel capture workers (default: 3)
+- `navigationTimeout` — page load timeout in ms (default: 45000)
+
+---
+
+## Integrating into your portfolio site
+
+The output is designed to be consumed by a static site generator. For Astro:
+
+```ts
+// src/pages/portfolio/[domain]/[slug].astro
+import meta from '../../../path/to/sites/example.com/meta.json';
+
+export function getStaticPaths() {
+  return meta.pages.map(p => ({
+    params: { domain: meta.domain, slug: p.slug },
+    props: { page: p, domain: meta.domain }
+  }));
+}
 ```
 
-複数サイトをパン/ズームで一覧したい等の高度なビューワーが必要になったら、別途Astro側で実装する想定(本リポジトリには含めない)。
+Image paths in `meta.json` are relative (`desktop/<slug>.png`), so combine with your asset baseURL.
 
 ---
 
-## 制限・注意
+## Limitations
 
-- **スクショ画像はGit管理外**(`.gitignore`)。ローカルで生成・保管します
-- **ログイン必須サイト**は現状未対応(今後 `storageState` で対応可)
-- **JavaScriptを大量に使うSPA**は `networkidle` で安定するまで待ちますが、撮り逃しがあれば `retry` で再取得を
+- **Screenshots are not pushed to git** by default — you should `.gitignore` the image folders. The `meta.json` files are small and tracking them is recommended.
+- **Login-protected pages are not yet supported** — Playwright's `storageState` integration is on the roadmap.
+- **Heavy SPAs** are waited on with `networkidle` + scroll, but if pages slip through, use `web-portfolio retry <domain>` to re-capture only failed ones.
+
+---
+
+## License
+
+MIT © 2026 Hayashi
+
+---
+
+## Links
+
+- [GitHub repository](https://github.com/hayashiii-ghub/web-portfolio)
+- [Issues](https://github.com/hayashiii-ghub/web-portfolio/issues)
+- [npm](https://www.npmjs.com/package/@hayashiii/web-portfolio)
