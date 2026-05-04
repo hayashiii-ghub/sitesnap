@@ -7,8 +7,13 @@ import { DEFAULTS } from './config.mjs';
 export function slugify(url) {
   const u = new URL(url);
   let p = u.pathname.replace(/^\/+|\/+$/g, '');
-  if (!p) p = 'index';
-  return p.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 120);
+  if (!p) return 'index';
+  const cleaned = p
+    .replace(/[^a-zA-Z0-9._-]+/g, '_')
+    .replace(/\.{2,}/g, '_')
+    .replace(/^[._-]+|[._-]+$/g, '')
+    .slice(0, 120);
+  return cleaned || 'index';
 }
 
 export function domainOf(url) {
