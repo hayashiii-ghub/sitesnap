@@ -33,3 +33,34 @@ test('slugify: caps length at 120 chars', () => {
 test('domainOf returns hostname', () => {
   assert.equal(domainOf('https://example.com/foo'), 'example.com');
 });
+
+import { captureUrls } from '../src/capture.mjs';
+
+test('captureUrls: rejects empty URL list with clear error', async () => {
+  await assert.rejects(() => captureUrls([], {}), /No URLs provided/);
+});
+
+test('captureUrls: rejects private URL by default', async () => {
+  await assert.rejects(
+    () => captureUrls(['http://localhost/foo'], { dryRun: true }),
+    /private|loopback/i
+  );
+});
+
+test('captureUrls: warns when URLs span multiple hostnames', async () => {
+  const warnings = [];
+  const originalErr = console.error;
+  console.error = (msg) => warnings.push(String(msg));
+  try {
+    await captureUrls(
+      ['https://example.com/a', 'https://other.com/b'],
+      { dryRun: true }
+    );
+  } finally {
+    console.error = originalErr;
+  }
+  assert.ok(
+    warnings.some(w => /multiple hostnames|cross.?origin/i.test(w)),
+    `expected a cross-origin warning, got: ${warnings.join(' | ')}`
+  );
+});

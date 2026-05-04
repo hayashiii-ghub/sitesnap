@@ -3,6 +3,7 @@ import { mkdir, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { DEFAULTS } from './config.mjs';
+import { assertPublicUrl } from './url-guard.mjs';
 
 export function slugify(url) {
   const u = new URL(url);
@@ -108,11 +109,31 @@ async function captureOne(browser, url, mode, siteDir, opts = {}) {
 export async function captureUrls(urls, opts = {}) {
   if (urls.length === 0) throw new Error('No URLs provided');
 
+  const allowPrivate = opts.allowPrivate || false;
+  for (const url of urls) {
+    assertPublicUrl(url, { allowPrivate });
+  }
+
   const domain = domainOf(urls[0]);
+  const otherHosts = new Set(urls.map(domainOf).filter(h => h !== domain));
+  if (otherHosts.size > 0) {
+    console.error(
+      `Warning: URLs span multiple hostnames; saving all under ${domain}/. ` +
+      `Other hosts seen: ${[...otherHosts].slice(0, 3).join(', ')}${otherHosts.size > 3 ? ` (+${otherHosts.size - 3})` : ''}`
+    );
+  }
+
+  if (opts.dryRun) {
+    return { domain, siteDir: null, results: [] };
+  }
+
   const baseDir = opts.outDir || DEFAULTS.sitesDir;
   const siteDir = path.join(baseDir, domain);
   await mkdir(path.join(siteDir, 'desktop'), { recursive: true });
   await mkdir(path.join(siteDir, 'mobile'), { recursive: true });
+
+  const concurrency = opts.concurrency || DEFAULTS.concurrency;
+  const rateLimiter = opts.rateLimiter;
 
   const browser = await chromium.launch();
   const results = [];
@@ -125,6 +146,7 @@ export async function captureUrls(urls, opts = {}) {
           const my = i++;
           const url = urls[my];
           try {
+            if (rateLimiter) await rateLimiter.wait(domainOf(url));
             const r = await captureOne(browser, url, mode, siteDir, opts);
             results.push(r);
             console.error(`[${mode}] ${my + 1}/${urls.length} ${r.skipped ? 'skip' : 'ok  '} ${url}`);
@@ -134,7 +156,7 @@ export async function captureUrls(urls, opts = {}) {
           }
         }
       };
-      await Promise.all(Array.from({ length: DEFAULTS.concurrency }, worker));
+      await Promise.all(Array.from({ length: concurrency }, worker));
     }
   } finally {
     await browser.close();
