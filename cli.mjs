@@ -66,7 +66,10 @@ for (let i = 1; i < argv.length; i++) {
     if (v === undefined) { console.error(`Missing value for ${a}`); process.exit(1); }
     if (a === '--out') outDir = v;
     else if (a === '--limit') limit = Number(v);
-    else if (a === '--exclude') exclude = new RegExp(v);
+    else if (a === '--exclude') {
+      try { exclude = new RegExp(v); }
+      catch (e) { console.error(`Invalid --exclude regex: ${e.message}`); process.exit(1); }
+    }
     else if (a === '--concurrency') concurrency = Number(v);
     else if (a === '--min-interval') minInterval = Number(v);
     continue;
