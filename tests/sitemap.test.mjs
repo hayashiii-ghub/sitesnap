@@ -44,7 +44,7 @@ test('expandSitemap: parses urlset and sends User-Agent', async () => {
   }
 });
 
-test('expandSitemap: throws on cyclic sitemap', async () => {
+test('expandSitemap: silently skips cyclic sitemap references', async () => {
   const cyclic = `<?xml version="1.0"?>
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <sitemap><loc>https://example.com/a.xml</loc></sitemap>
