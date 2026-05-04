@@ -26,13 +26,19 @@ Global flags:
                                         (AOS, wow.js, etc.) Use when screenshots come out blank.
   --out <dir>                           Output directory (default: ./sites/ in current working dir).
                                         Also configurable via SITESNAP_OUT env var.
+  --limit <N>                           Capture at most N URLs (sitemap order, after --exclude).
+  --exclude <regex>                     Skip URLs matching this regular expression.
+  --concurrency <N>                     Override worker count (default 3).
+  --min-interval <ms>                   Minimum delay between requests to the same host (default 0).
+  --strict                              Exit with non-zero status if any page failed to capture.
+  --allow-private                       Allow loopback/RFC1918/link-local hosts (default refused).
 
 Examples:
-  sitesnap site https://example.com/sitemap.xml
-  sitesnap page https://example.com/about --out ~/captures
-  sitesnap list --json
-  sitesnap open example.com
-  sitesnap site https://example.com/sitemap.xml --force-visible
+  sitesnap site https://example.com/sitemap.xml --limit 10
+  sitesnap site https://example.com/sitemap.xml --exclude '\\?utm_'
+  sitesnap site https://example.com/sitemap.xml --concurrency 5 --min-interval 250
+  sitesnap site https://example.com/sitemap.xml --strict
+  sitesnap site http://localhost:8080/sitemap.xml --allow-private
 `;
 
 const argv = process.argv.slice(2);
@@ -40,15 +46,29 @@ const sub = argv[0];
 
 const json = argv.includes('--json');
 const forceVisible = argv.includes('--force-visible');
+const strict = argv.includes('--strict');
+const allowPrivate = argv.includes('--allow-private');
 
 let outDir = process.env.SITESNAP_OUT || DEFAULTS.sitesDir;
-const flagSet = new Set(['--json', '--force-visible']);
+let limit = null;
+let exclude = null;
+let concurrency = null;
+let minInterval = null;
+
+const flagSet = new Set(['--json', '--force-visible', '--strict', '--allow-private']);
+const valueFlags = new Set(['--out', '--limit', '--exclude', '--concurrency', '--min-interval']);
 const args = [];
 for (let i = 1; i < argv.length; i++) {
   const a = argv[i];
   if (flagSet.has(a)) continue;
-  if (a === '--out') {
-    if (argv[i + 1]) outDir = argv[++i];
+  if (valueFlags.has(a)) {
+    const v = argv[++i];
+    if (v === undefined) { console.error(`Missing value for ${a}`); process.exit(1); }
+    if (a === '--out') outDir = v;
+    else if (a === '--limit') limit = Number(v);
+    else if (a === '--exclude') exclude = new RegExp(v);
+    else if (a === '--concurrency') concurrency = Number(v);
+    else if (a === '--min-interval') minInterval = Number(v);
     continue;
   }
   args.push(a);
@@ -73,10 +93,22 @@ async function cmdSite() {
   const sitemapUrl = args[0];
   if (!sitemapUrl) { console.error('Usage: sitesnap site <sitemap-url>'); process.exit(1); }
   console.error(`Expanding sitemap: ${sitemapUrl}`);
-  const urls = await expandSitemap(sitemapUrl);
+  let urls = await expandSitemap(sitemapUrl, { allowPrivate });
   console.error(`Found ${urls.length} URLs`);
+  if (exclude) {
+    const before = urls.length;
+    urls = urls.filter(u => !exclude.test(u));
+    console.error(`After --exclude: ${urls.length} URLs (filtered ${before - urls.length})`);
+  }
+  if (limit && urls.length > limit) {
+    urls = urls.slice(0, limit);
+    console.error(`After --limit: ${urls.length} URLs`);
+  }
   if (urls.length === 0) { out({ urls: 0 }, () => console.log('No URLs found.')); return; }
-  const { domain, siteDir, results } = await captureUrls(urls, { forceVisible, outDir });
+  const rateLimiter = minInterval ? (await import('./src/rate-limit.mjs')).createHostRateLimiter(minInterval) : null;
+  const { domain, siteDir, results } = await captureUrls(urls, {
+    forceVisible, outDir, allowPrivate, concurrency, rateLimiter,
+  });
   const meta = await buildSiteMeta({ domain, siteDir, urls, source: sitemapUrl, results });
   await buildIndex(outDir);
   const captured = meta.pages.filter(p => p.desktop || p.mobile).length;
@@ -85,21 +117,26 @@ async function cmdSite() {
     { domain, source: sitemapUrl, pages: meta.pages.length, captured_pages: captured, errors, out_dir: outDir },
     (r) => console.log(`\nDone: ${r.captured_pages}/${r.pages} pages → ${path.relative(process.cwd(), siteDir)}/meta.json${r.errors.length ? ` (${r.errors.length} errors)` : ''}`)
   );
+  if (strict && errors.length > 0) process.exit(1);
 }
 
 async function cmdPage() {
   const url = args[0];
   if (!url) { console.error('Usage: sitesnap page <url>'); process.exit(1); }
-  const { domain, siteDir, results } = await captureUrls([url], { forceVisible, outDir });
+  const { domain, siteDir, results } = await captureUrls([url], {
+    forceVisible, outDir, allowPrivate, concurrency,
+  });
   const existing = (await readMeta(domain))?.pages.map(p => p.url) || [];
   const allUrls = [...new Set([...existing, url])];
   const meta = await buildSiteMeta({ domain, siteDir, urls: allUrls, source: null, results });
   await buildIndex(outDir);
   const page = meta.pages.find(p => p.url === url);
+  const failed = results.filter(r => r.error);
   out(
-    { domain, url, desktop: !!page?.desktop, mobile: !!page?.mobile, errors: results.filter(r => r.error).map(r => r.error), out_dir: outDir },
+    { domain, url, desktop: !!page?.desktop, mobile: !!page?.mobile, errors: failed.map(r => r.error), out_dir: outDir },
     (r) => console.log(`\nDone: ${r.url} → ${path.relative(process.cwd(), siteDir)}/${r.desktop && r.mobile ? '(desktop+mobile)' : r.desktop ? '(desktop only)' : r.mobile ? '(mobile only)' : '(failed)'}`)
   );
+  if (strict && failed.length > 0) process.exit(1);
 }
 
 async function cmdList() {
@@ -170,4 +207,9 @@ if (!fn) {
   process.exit(1);
 }
 
-await fn();
+try {
+  await fn();
+} catch (e) {
+  console.error(`Error: ${e.message}`);
+  process.exit(1);
+}
