@@ -107,7 +107,7 @@ async function captureOne(browser, url, mode, siteDir, opts = {}) {
 }
 
 export async function captureUrls(urls, opts = {}) {
-  if (urls.length === 0) throw new Error('No URLs provided');
+  if (urls.length === 0) throw new Error('URLが指定されていません');
 
   const allowPrivate = opts.allowPrivate || false;
   for (const url of urls) {
@@ -118,8 +118,8 @@ export async function captureUrls(urls, opts = {}) {
   const otherHosts = new Set(urls.map(domainOf).filter(h => h !== domain));
   if (otherHosts.size > 0) {
     console.error(
-      `Warning: URLs span multiple hostnames; saving all under ${domain}/. ` +
-      `Other hosts seen: ${[...otherHosts].slice(0, 3).join(', ')}${otherHosts.size > 3 ? ` (+${otherHosts.size - 3})` : ''}`
+      `警告: URLが複数のホストにまたがっています。すべて ${domain}/ に保存します。` +
+      `他のホスト: ${[...otherHosts].slice(0, 3).join(', ')}${otherHosts.size > 3 ? ` (+${otherHosts.size - 3})` : ''}`
     );
   }
 
@@ -163,7 +163,7 @@ export async function captureUrls(urls, opts = {}) {
   }
 
   if (!opts.forceVisible && results.length > 0) {
-    console.error(`\nHint: if any screenshot comes out blank, retry with --force-visible (handles AOS/wow.js scroll-reveal libraries).`);
+    console.error(`\nヒント: スクリーンショットが真っ白だった場合は --force-visible を付けて再実行してください (AOS, wow.js 等のスクロール表示ライブラリ対策)。`);
   }
 
   return { domain, siteDir, results };

@@ -37,13 +37,13 @@ test('domainOf returns hostname', () => {
 import { captureUrls } from '../src/capture.mjs';
 
 test('captureUrls: rejects empty URL list with clear error', async () => {
-  await assert.rejects(() => captureUrls([], {}), /No URLs provided/);
+  await assert.rejects(() => captureUrls([], {}), /URLが指定されていません/);
 });
 
 test('captureUrls: rejects private URL by default', async () => {
   await assert.rejects(
     () => captureUrls(['http://localhost/foo'], { dryRun: true }),
-    /private|loopback/i
+    /プライベート|ループバック/
   );
 });
 
@@ -60,7 +60,7 @@ test('captureUrls: warns when URLs span multiple hostnames', async () => {
     console.error = originalErr;
   }
   assert.ok(
-    warnings.some(w => /multiple hostnames|cross.?origin/i.test(w)),
+    warnings.some(w => /複数のホスト/.test(w)),
     `expected a cross-origin warning, got: ${warnings.join(' | ')}`
   );
 });
