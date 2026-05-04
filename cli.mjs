@@ -9,31 +9,31 @@ import { buildSiteMeta, buildIndex } from './src/meta.mjs';
 import { DEFAULTS, VERSION } from './src/config.mjs';
 
 const HELP = `
-sitesnap — capture website screenshots for portfolio reference
+sitesnap — ウェブサイトのスクリーンショットを一括キャプチャするCLI
 
-Usage:
-  sitesnap site <sitemap-url>     Capture all URLs from a sitemap
-  sitesnap page <url>              Capture a single page
-  sitesnap list                    List captured sites
-  sitesnap open <domain>           Open captured screenshots in Finder
-  sitesnap retry <domain>          Re-capture failed/missing pages
-  sitesnap help                    Show this help
+使い方:
+  sitesnap site <sitemap-url>     sitemapから全ページをキャプチャ
+  sitesnap page <url>              1ページだけキャプチャ
+  sitesnap list                    キャプチャ済みサイト一覧
+  sitesnap open <domain>           Finderでサイトのフォルダを開く
+  sitesnap retry <domain>          失敗したページのみ再取得
+  sitesnap help                    このヘルプを表示
+  sitesnap --version               バージョン番号を表示
 
-Global flags:
-  --json                                Output machine-readable JSON to stdout
-                                        (progress logs go to stderr)
-  --force-visible                       Force-show elements hidden by scroll-reveal libraries
-                                        (AOS, wow.js, etc.) Use when screenshots come out blank.
-  --out <dir>                           Output directory (default: ./sites/ in current working dir).
-                                        Also configurable via SITESNAP_OUT env var.
-  --limit <N>                           Capture at most N URLs (sitemap order, after --exclude).
-  --exclude <regex>                     Skip URLs matching this regular expression.
-  --concurrency <N>                     Override worker count (default 3).
-  --min-interval <ms>                   Minimum delay between requests to the same host (default 0).
-  --strict                              Exit with non-zero status if any page failed to capture.
-  --allow-private                       Allow loopback/RFC1918/link-local hosts (default refused).
+グローバルフラグ:
+  --json                                JSON形式でstdout出力（進捗はstderr）
+  --force-visible                       スクロール連動アニメで隠れた要素を強制表示
+                                        (AOS, wow.js 等対策。スクショが真っ白な時に使用)
+  --out <dir>                           出力先ディレクトリ（デフォルト: ./sites/）
+                                        SITESNAP_OUT 環境変数でも指定可
+  --limit <N>                           最初の N 件のURLのみキャプチャ（--exclude適用後）
+  --exclude <regex>                     この正規表現にマッチするURLをスキップ
+  --concurrency <N>                     並列ワーカー数を上書き（デフォルト 3）
+  --min-interval <ms>                   同一ホストへの最小間隔(ms、デフォルト 0 で無効)
+  --strict                              1ページでも失敗したら非ゼロ終了（CI向け）
+  --allow-private                       localhost/プライベートIPへのアクセスを許可
 
-Examples:
+使用例:
   sitesnap site https://example.com/sitemap.xml --limit 10
   sitesnap site https://example.com/sitemap.xml --exclude '\\?utm_'
   sitesnap site https://example.com/sitemap.xml --concurrency 5 --min-interval 250
