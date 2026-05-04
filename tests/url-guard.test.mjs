@@ -24,14 +24,14 @@ test('isPrivateHost: IPv4 ranges that are NOT private', () => {
 });
 
 test('assertPublicUrl: rejects non-http(s) protocols', () => {
-  assert.throws(() => assertPublicUrl('file:///etc/passwd'), /protocol/i);
-  assert.throws(() => assertPublicUrl('ftp://example.com/'), /protocol/i);
-  assert.throws(() => assertPublicUrl('data:text/plain,hello'), /protocol/i);
+  assert.throws(() => assertPublicUrl('file:///etc/passwd'), /プロトコル/);
+  assert.throws(() => assertPublicUrl('ftp://example.com/'), /プロトコル/);
+  assert.throws(() => assertPublicUrl('data:text/plain,hello'), /プロトコル/);
 });
 
 test('assertPublicUrl: rejects private hosts by default', () => {
-  assert.throws(() => assertPublicUrl('http://localhost/'), /private|loopback/i);
-  assert.throws(() => assertPublicUrl('http://169.254.169.254/latest/meta-data/'), /private|loopback/i);
+  assert.throws(() => assertPublicUrl('http://localhost/'), /プライベート|ループバック/);
+  assert.throws(() => assertPublicUrl('http://169.254.169.254/latest/meta-data/'), /プライベート|ループバック/);
 });
 
 test('assertPublicUrl: allows public URLs', () => {
@@ -41,7 +41,7 @@ test('assertPublicUrl: allows public URLs', () => {
 
 test('assertPublicUrl: allowPrivate=true bypasses host check but keeps protocol check', () => {
   assert.doesNotThrow(() => assertPublicUrl('http://localhost:3000/', { allowPrivate: true }));
-  assert.throws(() => assertPublicUrl('file:///etc/passwd', { allowPrivate: true }), /protocol/i);
+  assert.throws(() => assertPublicUrl('file:///etc/passwd', { allowPrivate: true }), /プロトコル/);
 });
 
 test('isPrivateHost: bracketed IPv6 (URL.hostname returns brackets)', () => {
@@ -68,6 +68,6 @@ test('isPrivateHost: IPv4-mapped IPv6 unwraps to private IPv4', () => {
 });
 
 test('assertPublicUrl: rejects bracketed IPv6 loopback URL', () => {
-  assert.throws(() => assertPublicUrl('http://[::1]/'), /private|loopback/i);
-  assert.throws(() => assertPublicUrl('http://[fe80::1]/'), /private|loopback/i);
+  assert.throws(() => assertPublicUrl('http://[::1]/'), /プライベート|ループバック/);
+  assert.throws(() => assertPublicUrl('http://[fe80::1]/'), /プライベート|ループバック/);
 });

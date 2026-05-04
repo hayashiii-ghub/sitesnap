@@ -32,10 +32,10 @@ export function isPrivateHost(host) {
 export function assertPublicUrl(url, { allowPrivate = false } = {}) {
   const u = new URL(url);
   if (!['http:', 'https:'].includes(u.protocol)) {
-    throw new Error(`Unsupported protocol: ${u.protocol} (only http/https are allowed)`);
+    throw new Error(`サポートされていないプロトコル: ${u.protocol} (http/https のみ対応)`);
   }
   if (allowPrivate) return;
   if (isPrivateHost(u.hostname)) {
-    throw new Error(`Refusing to fetch private/loopback host: ${u.hostname} (use --allow-private to override)`);
+    throw new Error(`プライベート/ループバックホストへのアクセスは拒否されます: ${u.hostname} (--allow-private で上書き可)`);
   }
 }
