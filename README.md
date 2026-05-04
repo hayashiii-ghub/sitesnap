@@ -28,7 +28,7 @@ npm install -g @hayashiii/sitesnap
 npx playwright install chromium
 ```
 
-Requires **Node.js 18+**.
+Requires **Node.js 22+**.
 
 ---
 

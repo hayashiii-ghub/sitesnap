@@ -28,7 +28,7 @@ npm install -g @hayashiii/sitesnap
 npx playwright install chromium
 ```
 
-**Node.js 18以上** が必要です。
+**Node.js 22以上** が必要です。
 
 ---
 
