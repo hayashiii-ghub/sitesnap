@@ -1,5 +1,4 @@
 node_modules/
-sites/*/desktop/
-sites/*/mobile/
+sites/
 .DS_Store
 note-draft.md
