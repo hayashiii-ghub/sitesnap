@@ -135,5 +135,9 @@ export async function captureUrls(urls, opts = {}) {
     await browser.close();
   }
 
+  if (!opts.forceVisible && results.length > 0) {
+    console.error(`\nHint: if any screenshot comes out blank, retry with --force-visible (handles AOS/wow.js scroll-reveal libraries).`);
+  }
+
   return { domain, siteDir, results };
 }
