@@ -10,7 +10,12 @@ function mockFetchSequence(responses) {
     calls.push({ url, opts });
     const body = responses[url];
     if (body === undefined) throw new Error(`unexpected fetch: ${url}`);
-    return { ok: true, status: 200, text: async () => body };
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: (k) => k.toLowerCase() === 'content-type' ? 'application/xml' : null },
+      text: async () => body,
+    };
   });
   return { fn, calls };
 }
@@ -78,6 +83,24 @@ test('expandSitemap: throws when nesting exceeds maxDepth', async () => {
     await assert.rejects(
       () => expandSitemap('https://example.com/0.xml', { maxDepth: 2 }),
       /depth/i
+    );
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test('expandSitemap: rejects HTML response with helpful Japanese error', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    headers: { get: (k) => k.toLowerCase() === 'content-type' ? 'text/html; charset=utf-8' : null },
+    text: async () => '<html><body><h1>Hello</h1></body></html>',
+  });
+  try {
+    await assert.rejects(
+      () => expandSitemap('https://tsukurikae.jp/'),
+      /HTML|sitemapではありません/
     );
   } finally {
     globalThis.fetch = original;

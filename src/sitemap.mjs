@@ -7,6 +7,14 @@ const parser = new XMLParser();
 async function fetchXml(url) {
   const res = await fetch(url, { headers: { 'user-agent': USER_AGENT } });
   if (!res.ok) throw new Error(`${res.status} ${url}`);
+  const ct = res.headers.get('content-type') || '';
+  if (/text\/html/i.test(ct)) {
+    throw new Error(
+      `URLがHTMLを返しました（sitemapではありません）: ${url}\n` +
+      `ヒント: 単一ページなら 'sitesnap page <url>' を使うか、\n` +
+      `実際のsitemap位置を確認してください（/sitemap.xml や /robots.txt 内）。`
+    );
+  }
   return parser.parse(await res.text());
 }
 
