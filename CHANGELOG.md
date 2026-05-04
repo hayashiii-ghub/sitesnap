@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-05-04
+
+### Security
+- **SSRF prevention**: `expandSitemap` and `captureUrls` now refuse loopback / RFC1918 / link-local IPs and `localhost`. Use `--allow-private` to opt in.
+- **Protocol whitelist**: only `http://` and `https://` URLs are accepted (rejects `file://`, `ftp://`, `data:`).
+- **Sitemap recursion guard**: cyclic `sitemapindex` references are detected and skipped; nesting capped at depth 5.
+- **Identifiable User-Agent**: all outbound requests now send `sitesnap/<version> (+<homepage>)` instead of Node default / generic `Mozilla/5.0`.
+- **Slugify hardening**: `..` sequences and leading/trailing punctuation are neutralized to prevent surprising filenames.
+
+### Added
+- `--limit <N>`: cap captures to the first N URLs (after exclusion).
+- `--exclude <regex>`: skip URLs matching the given regular expression.
+- `--concurrency <N>`: override the worker count from the CLI.
+- `--min-interval <ms>`: minimum spacing between requests to the same host.
+- `--strict`: exit non-zero if any page fails to capture (CI-friendly).
+- `--allow-private`: opt in to private/loopback hosts.
+- Cross-origin warning when sitemap URLs span multiple hostnames.
+
+### Changed
+- Test suite added using the built-in `node:test` runner. Run with `npm test`.
+- Internal: extracted `src/url-guard.mjs` and `src/rate-limit.mjs`.
+
 ## [0.1.4] - 2026-05-04
 
 ### Added
