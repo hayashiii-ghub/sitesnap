@@ -43,3 +43,31 @@ test('assertPublicUrl: allowPrivate=true bypasses host check but keeps protocol 
   assert.doesNotThrow(() => assertPublicUrl('http://localhost:3000/', { allowPrivate: true }));
   assert.throws(() => assertPublicUrl('file:///etc/passwd', { allowPrivate: true }), /protocol/i);
 });
+
+test('isPrivateHost: bracketed IPv6 (URL.hostname returns brackets)', () => {
+  assert.equal(isPrivateHost('[::1]'), true);
+});
+
+test('isPrivateHost: IPv6 link-local fe80::/10', () => {
+  assert.equal(isPrivateHost('fe80::1'), true);
+  assert.equal(isPrivateHost('feb0::abcd'), true);
+});
+
+test('isPrivateHost: IPv6 unique-local fc00::/7', () => {
+  assert.equal(isPrivateHost('fc00::1'), true);
+  assert.equal(isPrivateHost('fd12:3456:789a::1'), true);
+});
+
+test('isPrivateHost: IPv4-mapped IPv6 unwraps to private IPv4', () => {
+  // ::ffff:7f00:1 == 127.0.0.1
+  assert.equal(isPrivateHost('::ffff:7f00:1'), true);
+  // ::ffff:c0a8:101 == 192.168.1.1
+  assert.equal(isPrivateHost('::ffff:c0a8:101'), true);
+  // ::ffff:0808:0808 == 8.8.8.8 (public)
+  assert.equal(isPrivateHost('::ffff:0808:0808'), false);
+});
+
+test('assertPublicUrl: rejects bracketed IPv6 loopback URL', () => {
+  assert.throws(() => assertPublicUrl('http://[::1]/'), /private|loopback/i);
+  assert.throws(() => assertPublicUrl('http://[fe80::1]/'), /private|loopback/i);
+});
