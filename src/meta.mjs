@@ -1,12 +1,12 @@
 import { readFile, writeFile, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { DEFAULTS } from './config.mjs';
+import { DEFAULTS, USER_AGENT } from './config.mjs';
 import { slugify } from './capture.mjs';
 
 async function fetchTitle(url) {
   try {
-    const res = await fetch(url, { headers: { 'user-agent': 'Mozilla/5.0' } });
+    const res = await fetch(url, { headers: { 'user-agent': USER_AGENT } });
     const html = await res.text();
     const m = html.match(/<title[^>]*>([^<]*)<\/title>/i);
     return m ? m[1].trim().replace(/\s+/g, ' ') : '';
@@ -90,3 +90,5 @@ export async function buildIndex(sitesDir = DEFAULTS.sitesDir) {
   await writeFile(path.join(sitesDir, 'index.json'), JSON.stringify(sites, null, 2));
   return sites;
 }
+
+export const _fetchTitleForTest = fetchTitle;
