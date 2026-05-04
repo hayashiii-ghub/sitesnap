@@ -17,6 +17,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "test": "node --test tests/**.test.mjs",
     "site": "node cli.mjs site",
     "page": "node cli.mjs page",
     "list": "node cli.mjs list",
