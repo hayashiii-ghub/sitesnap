@@ -1,14 +1,29 @@
 import { XMLParser } from 'fast-xml-parser';
+import { assertPublicUrl } from './url-guard.mjs';
+import { USER_AGENT, DEFAULTS } from './config.mjs';
 
 const parser = new XMLParser();
 
 async function fetchXml(url) {
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: { 'user-agent': USER_AGENT } });
   if (!res.ok) throw new Error(`${res.status} ${url}`);
   return parser.parse(await res.text());
 }
 
-export async function expandSitemap(sitemapUrl) {
+export async function expandSitemap(sitemapUrl, opts = {}) {
+  const visited = opts.visited || new Set();
+  const depth = opts.depth || 0;
+  const maxDepth = opts.maxDepth ?? DEFAULTS.maxSitemapDepth;
+  const allowPrivate = opts.allowPrivate || false;
+
+  if (depth > maxDepth) {
+    throw new Error(`Sitemap nesting exceeds maxDepth=${maxDepth}: ${sitemapUrl}`);
+  }
+  if (visited.has(sitemapUrl)) return [];
+  visited.add(sitemapUrl);
+
+  assertPublicUrl(sitemapUrl, { allowPrivate });
+
   const data = await fetchXml(sitemapUrl);
 
   if (data.sitemapindex) {
@@ -18,7 +33,8 @@ export async function expandSitemap(sitemapUrl) {
       .filter(Boolean);
     const all = new Set();
     for (const sub of subs) {
-      for (const u of await expandSitemap(sub)) all.add(u);
+      const childOpts = { visited, depth: depth + 1, maxDepth, allowPrivate };
+      for (const u of await expandSitemap(sub, childOpts)) all.add(u);
     }
     return [...all].sort();
   }
