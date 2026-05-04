@@ -183,7 +183,9 @@ async function cmdRetry() {
     return;
   }
   console.error(`Retrying ${failedUrls.length} pages...`);
-  const { siteDir, results } = await captureUrls(failedUrls, { force: true, forceVisible, outDir });
+  const { siteDir, results } = await captureUrls(failedUrls, {
+    force: true, forceVisible, outDir, allowPrivate, concurrency,
+  });
   const allUrls = meta.pages.map(p => p.url);
   const newMeta = await buildSiteMeta({ domain, siteDir, urls: allUrls, source: meta.source, results });
   await buildIndex(outDir);
@@ -194,6 +196,7 @@ async function cmdRetry() {
     { domain, retried: failedUrls.length, still_failing: stillFailing },
     (r) => console.log(`Retry done: ${r.retried - r.still_failing}/${r.retried} now captured.`)
   );
+  if (strict && stillFailing > 0) process.exit(1);
 }
 
 const commands = { site: cmdSite, page: cmdPage, list: cmdList, open: cmdOpen, retry: cmdRetry };
