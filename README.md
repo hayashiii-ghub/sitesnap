@@ -1,4 +1,4 @@
-> 🇯🇵 [日本語版](./README.ja.md)
+> 🇬🇧 [English](./README.en.md)
 
 # @hayashiii/sitesnap
 
@@ -7,73 +7,73 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node](https://img.shields.io/node/v/@hayashiii/sitesnap.svg)](https://nodejs.org)
 
-AI-friendly CLI for capturing website screenshots (desktop + mobile) with sitemap support and per-domain organization. Built for **portfolio reference collection**.
+ウェブサイトのスクリーンショット(デスクトップ + モバイル)を一括キャプチャしてローカルに保管する、AIエージェントフレンドリーなCLIツール。**ポートフォリオ用のサイト集めを目的**として設計。
 
-- 📁 Plain JSON + PNG output (no database)
-- 🤖 Designed for AI agents (Claude Code / Codex) — ships with a Claude Code skill
-- 📡 `--json` flag for structured stdout, parseable by any agent
-- 🌐 `meta.json` schema designed for static site generators (Astro/Next/etc.)
+- 📁 データはJSON + PNGファイル(DB不要)
+- 🤖 Claude Code / Codex などのAIエージェントから1コマンドで実行可能(Claude Code Skill同梱)
+- 📡 `--json` フラグで構造化出力 → エージェントが結果をパース可能
+- 🌐 別プロジェクト(Astro等)から `meta.json` を読み込んで公開ポートフォリオに統合可能
 
 ---
 
-## Install
+## インストール
 
 ```bash
-# global install (recommended)
+# グローバルインストール(推奨)
 npm install -g @hayashiii/sitesnap
-# or: pnpm add -g @hayashiii/sitesnap
-# or: yarn global add @hayashiii/sitesnap
+# または: pnpm add -g @hayashiii/sitesnap
+# または: yarn global add @hayashiii/sitesnap
 
-# install Playwright's Chromium browser (one-time)
+# Playwright の Chromium ブラウザを取得(初回のみ)
 npx playwright install chromium
 ```
 
-Requires **Node.js 22+**.
+**Node.js 22以上** が必要です。
 
 ---
 
 ## Quick Start
 
 ```bash
-# capture an entire site from its sitemap
+# サイトマップから全ページを一気にキャプチャ
 sitesnap site https://example.com/sitemap.xml
 
-# capture a single page
+# 1ページだけ
 sitesnap page https://example.com/about
 
-# list what you've captured so far
+# キャプチャ済みのサイト一覧
 sitesnap list
 
-# open a captured site's folder in Finder (macOS)
+# サイトのフォルダを Finder で開く(macOS)
 sitesnap open example.com
 ```
 
 ---
 
-## Commands
+## コマンド一覧
 
-| Command | Description |
+| コマンド | 用途 |
 |---|---|
-| `sitesnap site <sitemap-url>` | Expand sitemap → capture every URL |
-| `sitesnap page <url>` | Capture a single page |
-| `sitesnap list` | List captured sites |
-| `sitesnap open <domain>` | Open the site's folder in Finder |
-| `sitesnap retry <domain>` | Re-capture pages that failed previously |
-| `sitesnap help` | Show help |
+| `sitesnap site <sitemap-url>` | sitemapから全URL展開 → 全ページキャプチャ |
+| `sitesnap page <url>` | 単一ページのみキャプチャ |
+| `sitesnap list` | キャプチャ済みサイト一覧 |
+| `sitesnap open <domain>` | Finderでサイトのフォルダを開く |
+| `sitesnap retry <domain>` | 失敗したページのみ再取得 |
+| `sitesnap help` | ヘルプ表示 |
 
-### Global flags
+### グローバルフラグ
 
-| Flag | Purpose |
+| フラグ | 用途 |
 |---|---|
-| `--json` | Machine-readable JSON output to stdout (progress logs go to stderr). AI-agent friendly. |
-| `--force-visible` | Force-show elements hidden by scroll-reveal libraries (AOS, wow.js, etc.). **Use when screenshots come out blank.** |
-| `--out <dir>` | Output directory (default: `./sites/` in current working dir). Also configurable via `SITESNAP_OUT` env var. |
-| `--limit <N>` | Capture at most N URLs (sitemap order, after `--exclude`). |
-| `--exclude <regex>` | Skip URLs matching this regular expression (e.g., `'\?utm_'`). |
-| `--concurrency <N>` | Override worker count (default 3). |
-| `--min-interval <ms>` | Minimum delay between requests to the same host (default: 0, disabled). |
-| `--strict` | Exit with non-zero status if any page failed to capture (CI-friendly). |
-| `--allow-private` | Allow loopback / RFC1918 / link-local hosts (default refused). |
+| `--json` | 構造化JSON出力(stdoutにJSON、進捗ログはstderr)。AIエージェントから扱いやすい |
+| `--force-visible` | スクロール連動アニメで隠れた要素を強制表示。**スクショが真っ白な時に使う**(AOS, wow.js 等対策) |
+| `--out <dir>` | 出力先ディレクトリ(デフォルト: カレントディレクトリの `./sites/`)。`SITESNAP_OUT` 環境変数でも指定可 |
+| `--limit <N>` | 最初の N 件のURLだけキャプチャ(`--exclude` 適用後の順序) |
+| `--exclude <regex>` | この正規表現にマッチするURLをスキップ(例: `'\?utm_'`) |
+| `--concurrency <N>` | 並列ワーカー数を上書き(デフォルト3) |
+| `--min-interval <ms>` | 同一ホストへの最小間隔(ms、デフォルト 0 で無効)。サーバーに優しい運用に |
+| `--strict` | 1ページでも失敗したら非ゼロ終了(CIで使う想定) |
+| `--allow-private` | localhost/プライベートIPへのアクセスを許可(デフォルトは拒否) |
 
 ```bash
 sitesnap list --json
@@ -82,30 +82,29 @@ sitesnap list --json
 sitesnap site https://example.com/sitemap.xml --force-visible --out ~/captures
 ```
 
-### Animation handling (enabled by default)
+### アニメーション対策(デフォルトで有効)
 
-The capturer applies the following on every shot:
+Playwrightブラウザコンテキストに以下を自動適用しています:
+- `prefers-reduced-motion: reduce` の送信(まともなサイトはこれでアニメ無効化)
+- 全要素の `animation/transition` を `0.001s` に短縮するCSS注入
+- `document.fonts.ready` と全画像のロード完了を待ってから撮影
 
-- Sets `prefers-reduced-motion: reduce` on the browser context (sites that respect this skip animations entirely).
-- Injects CSS that shrinks all `animation` / `transition` durations to `0.001s`.
-- Waits for `document.fonts.ready` and all `<img>` elements to finish loading.
-
-If a site still produces blank screenshots (typically scroll-reveal libraries like AOS), pass `--force-visible` to aggressively unhide those elements.
+それでも真っ白なら `--force-visible` を試してください(AOS等のscroll-reveal対策)。
 
 ---
 
-## Output structure
+## 出力構造
 
 ```
-sites/                              (or wherever --out points)
-├── index.json                      summary across all sites
+sites/                              (--out で変更可)
+├── index.json                      全サイトのサマリ
 └── <domain>/
-    ├── meta.json                   page list + titles + image paths
-    ├── desktop/<slug>.png          desktop screenshots
-    └── mobile/<slug>.png           mobile screenshots
+    ├── meta.json                   ページ一覧 + 画像パス + タイトル
+    ├── desktop/<slug>.png          デスクトップ版スクショ
+    └── mobile/<slug>.png           モバイル版スクショ
 ```
 
-### `meta.json` schema
+### `meta.json` のスキーマ
 
 ```json
 {
@@ -116,7 +115,7 @@ sites/                              (or wherever --out points)
     {
       "url": "https://example.com/",
       "slug": "index",
-      "title": "Example",
+      "title": "ページタイトル",
       "desktop": "desktop/index.png",
       "mobile": "mobile/index.png",
       "captured_at": "2026-05-01T12:00:00Z",
@@ -129,37 +128,40 @@ sites/                              (or wherever --out points)
 
 ---
 
-## AI Agent integration
+## AI Agent からの使い方
 
 ### Claude Code
 
-This package ships with a skill at `.claude/skills/sitesnap/SKILL.md` (in the source repo). Drop the same skill file into a project's `.claude/skills/` to enable native invocation:
+ソースリポジトリには `.claude/skills/sitesnap/SKILL.md` が同梱されています。同じファイルを自分のプロジェクトの `.claude/skills/` にコピーすればネイティブで呼び出せるようになります:
 
-> User: "Capture this site for me: https://example.com/sitemap.xml"
-> Claude Code automatically runs `sitesnap site …`
+> ハヤシさん: 「このサイト保存して: https://example.com/sitemap.xml」
+> Claude Code が自動的に `sitesnap site …` を実行
 
-### Codex / other shell-capable agents
+### Codex / その他のシェル実行可能なAIエージェント
 
-Tell the agent the CLI exists and what it does — the `--json` flag returns easily-parseable output. Example prompt fragment:
+`--json` フラグで構造化出力できるので、エージェントに以下のような指示を渡すだけで使えます:
 
-> The `sitesnap` CLI is available. Use `sitesnap site <sitemap-url> --json` to capture an entire site, or `sitesnap page <url> --json` for a single page. Output is JSON to stdout, progress logs to stderr.
-
----
-
-## Configuration
-
-Defaults live in `src/config.mjs` (in the source repo). When using as a globally-installed CLI, you can fork the package or contribute upstream to adjust:
-
-- `viewports.desktop` — desktop viewport (width × height, deviceScaleFactor)
-- `viewports.mobile` — Playwright device preset name (e.g. `"iPhone 13"`)
-- `concurrency` — parallel capture workers (default: 3)
-- `navigationTimeout` — page load timeout in ms (default: 45000)
+> このCLIには `sitesnap` コマンドが使える。
+> - `sitesnap site <sitemap-url> --json` でサイト全体
+> - `sitesnap page <url> --json` で単一ページ
+> 出力はstdoutにJSON、進捗ログはstderr。
 
 ---
 
-## Integrating into your portfolio site
+## 設定変更(ソースを編集する場合)
 
-The output is designed to be consumed by a static site generator. For Astro:
+`src/config.mjs` でデフォルト値を調整できます:
+
+- `viewports.desktop` … デスクトップのビューポートサイズ
+- `viewports.mobile` … モバイルのデバイス名 (Playwright `devices` 参照)
+- `concurrency` … 並列キャプチャ数(デフォルト3)
+- `navigationTimeout` … ページ読み込みタイムアウト(ms)
+
+---
+
+## ポートフォリオサイトへの統合
+
+`meta.json` を静的サイトジェネレーター(Astro等)から読み込む想定で設計しています。Astroの例:
 
 ```ts
 // src/pages/portfolio/[domain]/[slug].astro
@@ -173,35 +175,35 @@ export function getStaticPaths() {
 }
 ```
 
-Image paths in `meta.json` are relative (`desktop/<slug>.png`), so combine with your asset baseURL.
+画像パスは `meta.json` 内で `desktop/<slug>.png` 形式の相対パスなので、配信時のbaseURLと組み合わせて使ってください。
 
 ---
 
-## Limitations
+## 制限・注意
 
-### Security
+### セキュリティ
 
-- By default, requests to `localhost`, `127.x`, `10.x`, `192.168.x`, `172.16-31.x`, and `169.254.x` (link-local) are **refused** (SSRF protection). Use `--allow-private` to override for internal/staging environments.
-- Only `http://` and `https://` schemes are accepted (rejects `file://`, `ftp://`, `data:`).
-- All HTTP requests send `sitesnap/<version> (+<homepage>)` as the User-Agent.
-- Cyclic and deeply-nested sitemapindex files (max depth 5 by default) are detected and rejected.
+- デフォルトで `localhost` / `127.x` / `10.x` / `192.168.x` / `172.16-31.x` / `169.254.x` (リンクローカル) へのアクセスを**拒否**します(SSRF対策)。社内環境で使う場合は `--allow-private` を付けてください。
+- `http://` / `https://` 以外のスキーム(file://, ftp://, data:)は受け付けません。
+- HTTPリクエストには `sitesnap/<version> (+<homepage>)` を User-Agent として送信します。
+- sitemapindex の循環参照や深いネスト(デフォルト最大5段)は自動で検出して中断します。
 
-### Other notes
+### その他の注意
 
-- **Screenshots are not pushed to git** by default — you should `.gitignore` the image folders. The `meta.json` files are small and tracking them is recommended.
-- **Login-protected pages are not yet supported** — Playwright's `storageState` integration is on the roadmap.
-- **Heavy SPAs** are waited on with `networkidle` + scroll, but if pages slip through, use `sitesnap retry <domain>` to re-capture only failed ones.
+- **スクショ画像はGit管理外推奨**。`meta.json` だけGit管理に乗せるのが基本(画像はサイズ大、生成物として扱う)
+- **ログイン必須サイト**は現状未対応(今後 Playwright の `storageState` で対応予定)
+- **JavaScriptを大量に使うSPA**は `networkidle` で待機してますが、撮り逃しがあれば `sitesnap retry <domain>` で再取得を
 
 ---
 
-## License
+## ライセンス
 
 MIT © 2026 Hayashi
 
 ---
 
-## Links
+## リンク
 
-- [GitHub repository](https://github.com/hayashiii-ghub/sitesnap)
+- [GitHubリポジトリ](https://github.com/hayashiii-ghub/sitesnap)
 - [Issues](https://github.com/hayashiii-ghub/sitesnap/issues)
 - [npm](https://www.npmjs.com/package/@hayashiii/sitesnap)
