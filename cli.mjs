@@ -6,7 +6,7 @@ import path from 'node:path';
 import { expandSitemap } from './src/sitemap.mjs';
 import { captureUrls } from './src/capture.mjs';
 import { buildSiteMeta, buildIndex } from './src/meta.mjs';
-import { DEFAULTS } from './src/config.mjs';
+import { DEFAULTS, VERSION } from './src/config.mjs';
 
 const HELP = `
 sitesnap — capture website screenshots for portfolio reference
@@ -43,6 +43,11 @@ Examples:
 
 const argv = process.argv.slice(2);
 const sub = argv[0];
+
+if (argv.includes('--version') || argv.includes('-v')) {
+  console.log(VERSION);
+  process.exit(0);
+}
 
 const json = argv.includes('--json');
 const forceVisible = argv.includes('--force-visible');

@@ -41,3 +41,21 @@ test('CLI: page rejects file:// scheme', async () => {
   assert.notEqual(code, 0);
   assert.match(stderr, /protocol/i);
 });
+
+test('CLI: --version prints version and exits 0', async () => {
+  const { stdout, code } = await run(['--version']);
+  assert.equal(code, 0);
+  assert.match(stdout.trim(), /^\d+\.\d+\.\d+$/);
+});
+
+test('CLI: -v alias prints version and exits 0', async () => {
+  const { stdout, code } = await run(['-v']);
+  assert.equal(code, 0);
+  assert.match(stdout.trim(), /^\d+\.\d+\.\d+$/);
+});
+
+test('CLI: --version takes precedence over subcommand', async () => {
+  const { stdout, code } = await run(['site', 'http://localhost/sitemap.xml', '--version']);
+  assert.equal(code, 0);
+  assert.match(stdout.trim(), /^\d+\.\d+\.\d+$/);
+});
