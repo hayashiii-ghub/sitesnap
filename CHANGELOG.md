@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-05-04
+
+### Added
+- `--version` / `-v` flag: print the installed version and exit.
+- Friendly Japanese error when `site` is given an HTML URL instead of a sitemap; suggests using `page` or checking `/robots.txt` for the actual sitemap path.
+
+### Changed
+- All user-facing CLI text (errors, help, progress messages) is now in Japanese to match the Japanese-default README. Worker progress lines (`[desktop] 1/3 ok URL`) keep the English status codes for at-a-glance readability.
+
+### Notes for downstream scripts
+This release changes log/error string formats. Scripts that grep stdout/stderr for English keywords like "Done:", "Found", or "Refusing to fetch" need to update to the Japanese equivalents (or use `--json` for stable structured output, which is unaffected).
+
 ## [0.2.0] - 2026-05-04
 
 ### Breaking Changes
