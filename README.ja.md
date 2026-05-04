@@ -71,7 +71,7 @@ sitesnap open example.com
 | `--limit <N>` | 最初の N 件のURLだけキャプチャ(`--exclude` 適用後の順序) |
 | `--exclude <regex>` | この正規表現にマッチするURLをスキップ(例: `'\?utm_'`) |
 | `--concurrency <N>` | 並列ワーカー数を上書き(デフォルト3) |
-| `--min-interval <ms>` | 同一ホストへの最小間隔(ms)。サーバーに優しい運用に |
+| `--min-interval <ms>` | 同一ホストへの最小間隔(ms、デフォルト 0 で無効)。サーバーに優しい運用に |
 | `--strict` | 1ページでも失敗したら非ゼロ終了(CIで使う想定) |
 | `--allow-private` | localhost/プライベートIPへのアクセスを許可(デフォルトは拒否) |
 

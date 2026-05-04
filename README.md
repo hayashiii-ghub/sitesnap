@@ -71,7 +71,7 @@ sitesnap open example.com
 | `--limit <N>` | Capture at most N URLs (sitemap order, after `--exclude`). |
 | `--exclude <regex>` | Skip URLs matching this regular expression (e.g., `'\?utm_'`). |
 | `--concurrency <N>` | Override worker count (default 3). |
-| `--min-interval <ms>` | Minimum delay between requests to the same host. |
+| `--min-interval <ms>` | Minimum delay between requests to the same host (default: 0, disabled). |
 | `--strict` | Exit with non-zero status if any page failed to capture (CI-friendly). |
 | `--allow-private` | Allow loopback / RFC1918 / link-local hosts (default refused). |
 

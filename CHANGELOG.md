@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - 2026-05-04
 
+### Breaking Changes
+- Captures targeting **private/loopback hosts** (localhost, 127.x, 10.x, 192.168.x, 172.16-31.x, 169.254.x, IPv6 link-local/unique-local) are now refused by default. If you were previously using sitesnap against staging/internal sites, append `--allow-private` to your existing commands.
+- Non-`http`/`https` URLs (`file://`, `ftp://`, `data:`) are rejected outright with no opt-in.
+
 ### Security
 - **SSRF prevention**: `expandSitemap` and `captureUrls` now refuse loopback / RFC1918 / link-local IPs and `localhost`. Use `--allow-private` to opt in.
 - **Protocol whitelist**: only `http://` and `https://` URLs are accepted (rejects `file://`, `ftp://`, `data:`).
