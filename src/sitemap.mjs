@@ -25,7 +25,7 @@ export async function expandSitemap(sitemapUrl, opts = {}) {
   const allowPrivate = opts.allowPrivate || false;
 
   if (depth > maxDepth) {
-    throw new Error(`Sitemap nesting exceeds maxDepth=${maxDepth}: ${sitemapUrl}`);
+    throw new Error(`サイトマップのネストが深すぎます (maxDepth=${maxDepth}): ${sitemapUrl}`);
   }
   if (visited.has(sitemapUrl)) return [];
   visited.add(sitemapUrl);

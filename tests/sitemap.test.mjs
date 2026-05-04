@@ -23,14 +23,14 @@ function mockFetchSequence(responses) {
 test('expandSitemap: rejects private host', async () => {
   await assert.rejects(
     () => expandSitemap('http://localhost/sitemap.xml'),
-    /private|loopback/i
+    /プライベート|ループバック/
   );
 });
 
 test('expandSitemap: rejects non-http protocol', async () => {
   await assert.rejects(
     () => expandSitemap('file:///tmp/sitemap.xml'),
-    /protocol/i
+    /プロトコル/
   );
 });
 
@@ -82,7 +82,7 @@ test('expandSitemap: throws when nesting exceeds maxDepth', async () => {
   try {
     await assert.rejects(
       () => expandSitemap('https://example.com/0.xml', { maxDepth: 2 }),
-      /depth/i
+      /ネスト|maxDepth/
     );
   } finally {
     globalThis.fetch = original;
