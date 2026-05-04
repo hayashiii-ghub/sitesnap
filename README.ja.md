@@ -68,6 +68,12 @@ sitesnap open example.com
 | `--json` | 構造化JSON出力(stdoutにJSON、進捗ログはstderr)。AIエージェントから扱いやすい |
 | `--force-visible` | スクロール連動アニメで隠れた要素を強制表示。**スクショが真っ白な時に使う**(AOS, wow.js 等対策) |
 | `--out <dir>` | 出力先ディレクトリ(デフォルト: カレントディレクトリの `./sites/`)。`SITESNAP_OUT` 環境変数でも指定可 |
+| `--limit <N>` | 最初の N 件のURLだけキャプチャ(`--exclude` 適用後の順序) |
+| `--exclude <regex>` | この正規表現にマッチするURLをスキップ(例: `'\?utm_'`) |
+| `--concurrency <N>` | 並列ワーカー数を上書き(デフォルト3) |
+| `--min-interval <ms>` | 同一ホストへの最小間隔(ms)。サーバーに優しい運用に |
+| `--strict` | 1ページでも失敗したら非ゼロ終了(CIで使う想定) |
+| `--allow-private` | localhost/プライベートIPへのアクセスを許可(デフォルトは拒否) |
 
 ```bash
 sitesnap list --json
@@ -174,6 +180,15 @@ export function getStaticPaths() {
 ---
 
 ## 制限・注意
+
+### セキュリティ
+
+- デフォルトで `localhost` / `127.x` / `10.x` / `192.168.x` / `172.16-31.x` / `169.254.x` (リンクローカル) へのアクセスを**拒否**します(SSRF対策)。社内環境で使う場合は `--allow-private` を付けてください。
+- `http://` / `https://` 以外のスキーム(file://, ftp://, data:)は受け付けません。
+- HTTPリクエストには `sitesnap/<version> (+<homepage>)` を User-Agent として送信します。
+- sitemapindex の循環参照や深いネスト(デフォルト最大5段)は自動で検出して中断します。
+
+### その他の注意
 
 - **スクショ画像はGit管理外推奨**。`meta.json` だけGit管理に乗せるのが基本(画像はサイズ大、生成物として扱う)
 - **ログイン必須サイト**は現状未対応(今後 Playwright の `storageState` で対応予定)

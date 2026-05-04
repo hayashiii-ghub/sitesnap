@@ -63,11 +63,17 @@ sitesnap open example.com
 
 ### Global flags
 
-| Flag | Description |
+| Flag | Purpose |
 |---|---|
-| `--json` | Output structured JSON to stdout (progress logs go to stderr). Easy for AI agents to parse. |
-| `--force-visible` | Force-show elements hidden by scroll-reveal libraries (AOS, wow.js, etc.). Use when screenshots come out blank. |
+| `--json` | Machine-readable JSON output to stdout (progress logs go to stderr). AI-agent friendly. |
+| `--force-visible` | Force-show elements hidden by scroll-reveal libraries (AOS, wow.js, etc.). **Use when screenshots come out blank.** |
 | `--out <dir>` | Output directory (default: `./sites/` in current working dir). Also configurable via `SITESNAP_OUT` env var. |
+| `--limit <N>` | Capture at most N URLs (sitemap order, after `--exclude`). |
+| `--exclude <regex>` | Skip URLs matching this regular expression (e.g., `'\?utm_'`). |
+| `--concurrency <N>` | Override worker count (default 3). |
+| `--min-interval <ms>` | Minimum delay between requests to the same host. |
+| `--strict` | Exit with non-zero status if any page failed to capture (CI-friendly). |
+| `--allow-private` | Allow loopback / RFC1918 / link-local hosts (default refused). |
 
 ```bash
 sitesnap list --json
@@ -172,6 +178,15 @@ Image paths in `meta.json` are relative (`desktop/<slug>.png`), so combine with 
 ---
 
 ## Limitations
+
+### Security
+
+- By default, requests to `localhost`, `127.x`, `10.x`, `192.168.x`, `172.16-31.x`, and `169.254.x` (link-local) are **refused** (SSRF protection). Use `--allow-private` to override for internal/staging environments.
+- Only `http://` and `https://` schemes are accepted (rejects `file://`, `ftp://`, `data:`).
+- All HTTP requests send `sitesnap/<version> (+<homepage>)` as the User-Agent.
+- Cyclic and deeply-nested sitemapindex files (max depth 5 by default) are detected and rejected.
+
+### Other notes
 
 - **Screenshots are not pushed to git** by default — you should `.gitignore` the image folders. The `meta.json` files are small and tracking them is recommended.
 - **Login-protected pages are not yet supported** — Playwright's `storageState` integration is on the roadmap.
