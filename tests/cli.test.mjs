@@ -33,13 +33,13 @@ test('CLI: help mentions new flags', async () => {
 test('CLI: site rejects private URL by default with non-zero exit', async () => {
   const { code, stderr } = await run(['site', 'http://localhost/sitemap.xml']);
   assert.notEqual(code, 0);
-  assert.match(stderr, /private|loopback/i);
+  assert.match(stderr, /プライベート|ループバック/);
 });
 
 test('CLI: page rejects file:// scheme', async () => {
   const { code, stderr } = await run(['page', 'file:///etc/passwd']);
   assert.notEqual(code, 0);
-  assert.match(stderr, /protocol/i);
+  assert.match(stderr, /プロトコル/);
 });
 
 test('CLI: --version prints version and exits 0', async () => {

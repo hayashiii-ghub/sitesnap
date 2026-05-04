@@ -68,12 +68,12 @@ for (let i = 1; i < argv.length; i++) {
   if (flagSet.has(a)) continue;
   if (valueFlags.has(a)) {
     const v = argv[++i];
-    if (v === undefined) { console.error(`Missing value for ${a}`); process.exit(1); }
+    if (v === undefined) { console.error(`${a} に値が指定されていません`); process.exit(1); }
     if (a === '--out') outDir = v;
     else if (a === '--limit') limit = Number(v);
     else if (a === '--exclude') {
       try { exclude = new RegExp(v); }
-      catch (e) { console.error(`Invalid --exclude regex: ${e.message}`); process.exit(1); }
+      catch (e) { console.error(`--exclude の正規表現が不正です: ${e.message}`); process.exit(1); }
     }
     else if (a === '--concurrency') concurrency = Number(v);
     else if (a === '--min-interval') minInterval = Number(v);
@@ -99,20 +99,20 @@ function out(obj, humanFn) {
 
 async function cmdSite() {
   const sitemapUrl = args[0];
-  if (!sitemapUrl) { console.error('Usage: sitesnap site <sitemap-url>'); process.exit(1); }
-  console.error(`Expanding sitemap: ${sitemapUrl}`);
+  if (!sitemapUrl) { console.error('使い方: sitesnap site <sitemap-url>'); process.exit(1); }
+  console.error(`sitemapを展開中: ${sitemapUrl}`);
   let urls = await expandSitemap(sitemapUrl, { allowPrivate });
-  console.error(`Found ${urls.length} URLs`);
+  console.error(`${urls.length} 件のURLを検出`);
   if (exclude) {
     const before = urls.length;
     urls = urls.filter(u => !exclude.test(u));
-    console.error(`After --exclude: ${urls.length} URLs (filtered ${before - urls.length})`);
+    console.error(`--exclude 適用後: ${urls.length} 件のURL (${before - urls.length} 件除外)`);
   }
   if (limit && urls.length > limit) {
     urls = urls.slice(0, limit);
-    console.error(`After --limit: ${urls.length} URLs`);
+    console.error(`--limit 適用後: ${urls.length} 件のURL`);
   }
-  if (urls.length === 0) { out({ urls: 0 }, () => console.log('No URLs found.')); return; }
+  if (urls.length === 0) { out({ urls: 0 }, () => console.log('URLが見つかりませんでした。')); return; }
   const rateLimiter = minInterval ? (await import('./src/rate-limit.mjs')).createHostRateLimiter(minInterval) : null;
   const { domain, siteDir, results } = await captureUrls(urls, {
     forceVisible, outDir, allowPrivate, concurrency, rateLimiter,
@@ -123,14 +123,14 @@ async function cmdSite() {
   const errors = results.filter(r => r.error).map(r => ({ url: r.url, mode: r.mode, error: r.error }));
   out(
     { domain, source: sitemapUrl, pages: meta.pages.length, captured_pages: captured, errors, out_dir: outDir },
-    (r) => console.log(`\nDone: ${r.captured_pages}/${r.pages} pages → ${path.relative(process.cwd(), siteDir)}/meta.json${r.errors.length ? ` (${r.errors.length} errors)` : ''}`)
+    (r) => console.log(`\n完了: ${r.captured_pages}/${r.pages} ページ → ${path.relative(process.cwd(), siteDir)}/meta.json${r.errors.length ? ` (${r.errors.length} 件のエラー)` : ''}`)
   );
   if (strict && errors.length > 0) process.exit(1);
 }
 
 async function cmdPage() {
   const url = args[0];
-  if (!url) { console.error('Usage: sitesnap page <url>'); process.exit(1); }
+  if (!url) { console.error('使い方: sitesnap page <url>'); process.exit(1); }
   const { domain, siteDir, results } = await captureUrls([url], {
     forceVisible, outDir, allowPrivate, concurrency,
   });
@@ -142,7 +142,7 @@ async function cmdPage() {
   const failed = results.filter(r => r.error);
   out(
     { domain, url, desktop: !!page?.desktop, mobile: !!page?.mobile, errors: failed.map(r => r.error), out_dir: outDir },
-    (r) => console.log(`\nDone: ${r.url} → ${path.relative(process.cwd(), siteDir)}/${r.desktop && r.mobile ? '(desktop+mobile)' : r.desktop ? '(desktop only)' : r.mobile ? '(mobile only)' : '(failed)'}`)
+    (r) => console.log(`\n完了: ${r.url} → ${path.relative(process.cwd(), siteDir)}/${r.desktop && r.mobile ? '(デスクトップ+モバイル)' : r.desktop ? '(デスクトップのみ)' : r.mobile ? '(モバイルのみ)' : '(失敗)'}`)
   );
   if (strict && failed.length > 0) process.exit(1);
 }
@@ -152,11 +152,11 @@ async function cmdList() {
   out(
     sites,
     (list) => {
-      if (list.length === 0) { console.log(`No sites captured yet (looked in ${outDir}).`); return; }
-      console.log(`Captured sites in ${outDir}:\n`);
+      if (list.length === 0) { console.log(`まだキャプチャ済みサイトはありません (確認先: ${outDir})。`); return; }
+      console.log(`キャプチャ済みサイト一覧 (${outDir}):\n`);
       for (const s of list) {
         const date = s.captured_at?.slice(0, 10) || '?';
-        console.log(`  ${s.domain.padEnd(30)} ${s.captured_pages}/${s.pages} pages   ${date}`);
+        console.log(`  ${s.domain.padEnd(30)} ${s.captured_pages}/${s.pages} ページ   ${date}`);
       }
     }
   );
@@ -164,30 +164,30 @@ async function cmdList() {
 
 async function cmdOpen() {
   const domain = args[0];
-  if (!domain) { console.error('Usage: sitesnap open <domain>'); process.exit(1); }
+  if (!domain) { console.error('使い方: sitesnap open <domain>'); process.exit(1); }
   const dir = path.resolve(outDir, domain);
-  if (!existsSync(dir)) { console.error(`No captures for ${domain} at ${dir}`); process.exit(1); }
+  if (!existsSync(dir)) { console.error(`${domain} のキャプチャがありません: ${dir}`); process.exit(1); }
   const opener =
     process.platform === 'darwin' ? { cmd: 'open', args: [dir] } :
     process.platform === 'win32'  ? { cmd: 'explorer', args: [dir] } :
                                     { cmd: 'xdg-open', args: [dir] };
   spawn(opener.cmd, opener.args, { stdio: 'ignore', detached: true }).unref();
-  out({ domain, opened: dir }, (r) => console.log(`Opened: ${r.opened}`));
+  out({ domain, opened: dir }, (r) => console.log(`開きました: ${r.opened}`));
 }
 
 async function cmdRetry() {
   const domain = args[0];
-  if (!domain) { console.error('Usage: sitesnap retry <domain>'); process.exit(1); }
+  if (!domain) { console.error('使い方: sitesnap retry <domain>'); process.exit(1); }
   const meta = await readMeta(domain);
-  if (!meta) { console.error(`No meta.json at ${path.join(outDir, domain)}`); process.exit(1); }
+  if (!meta) { console.error(`meta.json が見つかりません: ${path.join(outDir, domain)}`); process.exit(1); }
   const failedUrls = meta.pages
     .filter(p => !p.desktop || !p.mobile || p.desktop_error || p.mobile_error)
     .map(p => p.url);
   if (failedUrls.length === 0) {
-    out({ domain, retried: 0 }, () => console.log('No failed pages to retry.'));
+    out({ domain, retried: 0 }, () => console.log('再取得対象のページはありません。'));
     return;
   }
-  console.error(`Retrying ${failedUrls.length} pages...`);
+  console.error(`${failedUrls.length} 件のページを再取得中...`);
   const { siteDir, results } = await captureUrls(failedUrls, {
     force: true, forceVisible, outDir, allowPrivate, concurrency,
   });
@@ -199,7 +199,7 @@ async function cmdRetry() {
   ).length;
   out(
     { domain, retried: failedUrls.length, still_failing: stillFailing },
-    (r) => console.log(`Retry done: ${r.retried - r.still_failing}/${r.retried} now captured.`)
+    (r) => console.log(`再取得完了: ${r.retried - r.still_failing}/${r.retried} 件が新たにキャプチャされました。`)
   );
   if (strict && stillFailing > 0) process.exit(1);
 }
@@ -213,7 +213,7 @@ if (!sub || sub === 'help' || sub === '-h' || sub === '--help') {
 
 const fn = commands[sub];
 if (!fn) {
-  console.error(`Unknown command: ${sub}`);
+  console.error(`不明なコマンド: ${sub}`);
   console.error(HELP);
   process.exit(1);
 }
@@ -221,6 +221,6 @@ if (!fn) {
 try {
   await fn();
 } catch (e) {
-  console.error(`Error: ${e.message}`);
+  console.error(`エラー: ${e.message}`);
   process.exit(1);
 }
