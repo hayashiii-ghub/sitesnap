@@ -5,7 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/@hayashiii/sitesnap.svg)](https://www.npmjs.com/package/@hayashiii/sitesnap)
 [![npm downloads](https://img.shields.io/npm/dm/@hayashiii/sitesnap.svg)](https://www.npmjs.com/package/@hayashiii/sitesnap)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node](https://img.shields.io/node/v/@hayashiii/sitesnap.svg)](https://nodejs.org)
+[![Bun](https://img.shields.io/badge/runtime-Bun%20%E2%89%A51.3-fbf0df)](https://bun.sh)
 
 AI-friendly CLI for capturing website screenshots (desktop + mobile) with sitemap support and per-domain organization. Built for **portfolio reference collection**.
 
@@ -18,17 +18,26 @@ AI-friendly CLI for capturing website screenshots (desktop + mobile) with sitema
 
 ## Install
 
-```bash
-# global install (recommended)
-npm install -g @hayashiii/sitesnap
-# or: pnpm add -g @hayashiii/sitesnap
-# or: yarn global add @hayashiii/sitesnap
+Requires **Bun 1.3+** as the runtime. Install Bun first:
 
-# install Playwright's Chromium browser (one-time)
-npx playwright install chromium
+```bash
+# install Bun (macOS Homebrew shown; see https://bun.sh for other platforms)
+brew install oven-sh/bun/bun
+# or: curl -fsSL https://bun.sh/install | bash
 ```
 
-Requires **Node.js 22+**.
+Then install sitesnap globally:
+
+```bash
+# global install
+bun install -g @hayashiii/sitesnap
+# npm install -g @hayashiii/sitesnap also works (it still uses Bun under the hood)
+
+# install Playwright's Chromium browser (one-time)
+bunx playwright install chromium
+```
+
+> 💡 As of v0.3, sitesnap runs on Bun instead of Node.js. The package's `preinstall` step will fail with a clear message if Bun is not on PATH.
 
 ---
 
@@ -162,7 +171,7 @@ Other agents that don't use `AGENTS.md` can paste the same snippet into their sy
 
 ## Configuration
 
-Defaults live in `src/config.mjs` (in the source repo). When using as a globally-installed CLI, you can fork the package or contribute upstream to adjust:
+Defaults live in `src/config.ts` (in the source repo). When using as a globally-installed CLI, you can fork the package or contribute upstream to adjust:
 
 - `viewports.desktop` — desktop viewport (width × height, deviceScaleFactor)
 - `viewports.mobile` — Playwright device preset name (e.g. `"iPhone 13"`)

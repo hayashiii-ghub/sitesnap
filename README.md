@@ -5,7 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/@hayashiii/sitesnap.svg)](https://www.npmjs.com/package/@hayashiii/sitesnap)
 [![npm downloads](https://img.shields.io/npm/dm/@hayashiii/sitesnap.svg)](https://www.npmjs.com/package/@hayashiii/sitesnap)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node](https://img.shields.io/node/v/@hayashiii/sitesnap.svg)](https://nodejs.org)
+[![Bun](https://img.shields.io/badge/runtime-Bun%20%E2%89%A51.3-fbf0df)](https://bun.sh)
 
 ウェブサイトのスクリーンショット(デスクトップ + モバイル)を一括キャプチャしてローカルに保管する、AIエージェントフレンドリーなCLIツール。**ポートフォリオ用のサイト集めを目的**として設計。
 
@@ -18,17 +18,26 @@
 
 ## インストール
 
-```bash
-# グローバルインストール(推奨)
-npm install -g @hayashiii/sitesnap
-# または: pnpm add -g @hayashiii/sitesnap
-# または: yarn global add @hayashiii/sitesnap
+**Bun 1.3以上** が必要です(ランタイムとして使用)。事前にインストールしてください:
 
-# Playwright の Chromium ブラウザを取得(初回のみ)
-npx playwright install chromium
+```bash
+# Bun のインストール (macOS なら brew がおすすめ)
+brew install oven-sh/bun/bun
+# または: curl -fsSL https://bun.sh/install | bash
 ```
 
-**Node.js 22以上** が必要です。
+その後 sitesnap をグローバルインストール:
+
+```bash
+# グローバルインストール
+bun install -g @hayashiii/sitesnap
+# npm install -g @hayashiii/sitesnap でも動作します(裏で Bun が呼ばれます)
+
+# Playwright の Chromium ブラウザを取得(初回のみ)
+bunx playwright install chromium
+```
+
+> 💡 v0.3 から Node.js ではなく Bun ランタイム上で動作します。Bun が見つからない場合はインストール時に明示的にエラーを出します。
 
 ---
 
@@ -161,7 +170,7 @@ Codex CLI はプロジェクト直下の `AGENTS.md` を自動で読み込むの
 
 ## 設定変更(ソースを編集する場合)
 
-`src/config.mjs` でデフォルト値を調整できます:
+`src/config.ts` でデフォルト値を調整できます:
 
 - `viewports.desktop` … デスクトップのビューポートサイズ
 - `viewports.mobile` … モバイルのデバイス名 (Playwright `devices` 参照)

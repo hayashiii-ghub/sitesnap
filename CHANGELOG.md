@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Breaking Changes
+- **Runtime is now Bun (≥1.3) instead of Node.js.** Users must install Bun before installing sitesnap. The `preinstall` script will fail with a clear message if Bun is not on PATH. Install via `brew install oven-sh/bun/bun` or `curl -fsSL https://bun.sh/install | bash`.
+- `bin` now points to `cli.ts` (was `cli.mjs`). Bun executes TypeScript directly; no compilation step is required.
+
+### Changed
+- All source files migrated from `.mjs` to `.ts`. Type annotations are minimal at this stage; the codebase is essentially renamed JavaScript and can be progressively typed.
+- Test runner switched from `node --test` (invoked as `npm test`) to `bun test`. Tests still use the `node:test` API, which Bun's compatibility layer handles natively. The single incompatibility encountered was `mock.fn`; affected tests now use plain async functions (call tracking was already manual via push).
+- Package manager switched from pnpm to bun (`bun.lock` replaces `pnpm-lock.yaml`).
+- `engines` field updated from `node >= 22` to `bun >= 1.3`.
+- CI workflow (`.github/workflows/ci.yml`) ported to `oven-sh/setup-bun@v2`, `bun install --frozen-lockfile`, `bun test`, `bun cli.ts ...`.
+- README and AGENTS.md updated to reflect Bun-based install and development workflow.
+
+### Added
+- `tsconfig.json` for editor support (no compilation; Bun runs `.ts` directly).
+- `preinstall` script that errors clearly if Bun is missing on the user's machine.
+
+### Migration notes for existing users
+- Uninstall the old version (`npm uninstall -g @hayashiii/sitesnap`), install Bun, then reinstall (`bun install -g @hayashiii/sitesnap`).
+- Captured output (`sites/<domain>/...` and `meta.json` schema) is unchanged and remains backward-compatible.
+- All CLI commands and flags are unchanged.
+
 ## [0.2.1] - 2026-05-04
 
 ### Added

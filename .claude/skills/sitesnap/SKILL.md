@@ -18,9 +18,9 @@ description: ウェブサイトのスクリーンショット(デスクトップ
 
 ## 前提
 
-`sitesnap` がグローバルインストール済み(`npm install -g @hayashiii/sitesnap`)。`npx playwright install chromium` も実行済みであること。
+`sitesnap` がグローバルインストール済み(`bun install -g @hayashiii/sitesnap`、または `npm install -g @hayashiii/sitesnap`)。事前に Bun ランタイムが必要(`brew install oven-sh/bun/bun`)。`bunx playwright install chromium` も実行済みであること。
 
-ローカルclone状態の場合は `node cli.mjs ...` で代用可。
+ローカルclone状態の場合は `bun cli.ts ...` で代用可。
 
 ## コマンド
 

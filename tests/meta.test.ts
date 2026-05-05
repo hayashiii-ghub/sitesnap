@@ -5,10 +5,10 @@ import { USER_AGENT } from '../src/config.ts';
 test('meta: fetchTitle sends identifiable User-Agent', async () => {
   const calls: Array<{ url: string; opts: any }> = [];
   const original = globalThis.fetch;
-  globalThis.fetch = (async (url: string, opts: any) => {
+  globalThis.fetch = async (url: string, opts: any) => {
     calls.push({ url, opts });
-    return { ok: true, text: async () => '<html><head><title>Hello</title></head></html>' };
-  }) as any;
+    return { ok: true, text: async () => '<html><head><title>Hello</title></head></html>' } as Response;
+  };
   try {
     const { _fetchTitleForTest } = await import('../src/meta.ts');
     const title = await _fetchTitleForTest('https://example.com/');
