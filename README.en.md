@@ -138,11 +138,23 @@ This package ships with a skill at `.claude/skills/sitesnap/SKILL.md` (in the so
 > User: "Capture this site for me: https://example.com/sitemap.xml"
 > Claude Code automatically runs `sitesnap site …`
 
-### Codex / other shell-capable agents
+### Codex CLI / other shell-capable agents
 
-Tell the agent the CLI exists and what it does — the `--json` flag returns easily-parseable output. Example prompt fragment:
+Codex CLI automatically reads your project's `AGENTS.md`. Append the snippet below to enable natural-language invocation:
 
-> The `sitesnap` CLI is available. Use `sitesnap site <sitemap-url> --json` to capture an entire site, or `sitesnap page <url> --json` for a single page. Output is JSON to stdout, progress logs to stderr.
+````markdown
+## Using sitesnap to capture websites
+
+The `sitesnap` CLI is available in this repo.
+
+- `sitesnap site <sitemap-url> --json` — capture every page in a sitemap
+- `sitesnap page <url> --json` — capture a single page
+- `sitesnap list --json` — list previously captured sites
+
+Output is JSON to stdout, progress logs to stderr. Exits non-zero on failure.
+````
+
+Other agents that don't use `AGENTS.md` can paste the same snippet into their system prompt or instructions.
 
 ---
 

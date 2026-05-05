@@ -134,17 +134,26 @@ sites/                              (--out で変更可)
 
 ソースリポジトリには `.claude/skills/sitesnap/SKILL.md` が同梱されています。同じファイルを自分のプロジェクトの `.claude/skills/` にコピーすればネイティブで呼び出せるようになります:
 
-> ハヤシさん: 「このサイト保存して: https://example.com/sitemap.xml」
+> ユーザー: 「このサイト保存して: https://example.com/sitemap.xml」
 > Claude Code が自動的に `sitesnap site …` を実行
 
-### Codex / その他のシェル実行可能なAIエージェント
+### Codex CLI / その他のシェル実行可能なAIエージェント
 
-`--json` フラグで構造化出力できるので、エージェントに以下のような指示を渡すだけで使えます:
+Codex CLI はプロジェクト直下の `AGENTS.md` を自動で読み込むので、以下のスニペットをご自分の `AGENTS.md` に追記すれば自然言語で呼び出せるようになります:
 
-> このCLIには `sitesnap` コマンドが使える。
-> - `sitesnap site <sitemap-url> --json` でサイト全体
-> - `sitesnap page <url> --json` で単一ページ
-> 出力はstdoutにJSON、進捗ログはstderr。
+````markdown
+## sitesnap でWebサイトをキャプチャする
+
+このリポジトリでは `sitesnap` コマンドが利用可能です。
+
+- `sitesnap site <sitemap-url> --json` で sitemap から全ページキャプチャ
+- `sitesnap page <url> --json` で単一ページのみキャプチャ
+- `sitesnap list --json` でキャプチャ済みサイト一覧
+
+出力は stdout に JSON、進捗ログは stderr。失敗時は非ゼロ終了。
+````
+
+`AGENTS.md` を使わない他のエージェントでも、同じスニペットをシステムプロンプトや指示文に貼れば同様に使えます。
 
 ---
 
