@@ -219,3 +219,4 @@ MIT © 2026 Hayashi
 - [GitHub repository](https://github.com/hayashiii-ghub/sitesnap)
 - [Issues](https://github.com/hayashiii-ghub/sitesnap/issues)
 - [npm](https://www.npmjs.com/package/@hayashiii/sitesnap)
+- [Bun runtime migration experiment (reference)](https://github.com/hayashiii-ghub/sitesnap/tree/experiment-bun) — exploratory branch on Bun + TypeScript, kept as a reference (not merged)

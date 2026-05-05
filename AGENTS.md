@@ -79,6 +79,16 @@ npm pack --dry-run
 - ユーザー入力(URL)を直接 `path.join()` に渡さない。`slugify()` を経由する
 - `--allow-private` フラグでガードを無効化する場合のみ、プライベート IP へのアクセスを許可
 
+## 過去の検討事項
+
+### Bunランタイムへの移行(2026-05-05、見送り)
+
+学習目的でBunへの全面移行を実験。3段階(パッケージマネージャ・ランタイム・TypeScript化)を全て成功させたが、配布形態が変わる(ユーザーにBun事前インストールを要求する)割にエンドユーザーへの機能的メリットが薄かったため、mainには取り込まず実験ブランチとして保管した。
+
+- ブランチ: [`experiment-bun`](https://github.com/hayashiii-ghub/sitesnap/tree/experiment-bun)
+- 詳細記録: [`docs/specs/2026-05-05-bun-experiment.md`](https://github.com/hayashiii-ghub/sitesnap/blob/experiment-bun/docs/specs/2026-05-05-bun-experiment.md) (実験ブランチ上)
+- 結論: 機能改善目的なら不要。Bun学習が動機なら良い題材だった
+
 ## 参考リンク
 
 - npm: https://www.npmjs.com/package/@hayashiii/sitesnap

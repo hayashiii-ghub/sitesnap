@@ -218,3 +218,4 @@ MIT © 2026 Hayashi
 - [GitHubリポジトリ](https://github.com/hayashiii-ghub/sitesnap)
 - [Issues](https://github.com/hayashiii-ghub/sitesnap/issues)
 - [npm](https://www.npmjs.com/package/@hayashiii/sitesnap)
+- [Bunランタイムへの移行実験(参考)](https://github.com/hayashiii-ghub/sitesnap/tree/experiment-bun) — Bun + TypeScript で動かしてみた版。merge せず参考として保管
