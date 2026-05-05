@@ -8,7 +8,7 @@ const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'cli.t
 
 function run(args, env = {}) {
   return new Promise((resolve) => {
-    const child = spawn('node', [CLI, ...args], {
+    const child = spawn('bun', [CLI, ...args], {
       env: { ...process.env, ...env },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
