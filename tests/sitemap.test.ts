@@ -1,22 +1,22 @@
-import { test, mock } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { expandSitemap } from '../src/sitemap.mjs';
-import { USER_AGENT } from '../src/config.mjs';
-import { FIXTURE_URLSET, FIXTURE_SITEMAPINDEX } from './helpers.mjs';
+import { expandSitemap } from '../src/sitemap.ts';
+import { USER_AGENT } from '../src/config.ts';
+import { FIXTURE_URLSET, FIXTURE_SITEMAPINDEX } from './helpers.ts';
 
-function mockFetchSequence(responses) {
-  const calls = [];
-  const fn = mock.fn(async (url, opts) => {
+function mockFetchSequence(responses: Record<string, string>) {
+  const calls: Array<{ url: string; opts: any }> = [];
+  const fn = async (url: string, opts: any) => {
     calls.push({ url, opts });
     const body = responses[url];
     if (body === undefined) throw new Error(`unexpected fetch: ${url}`);
     return {
       ok: true,
       status: 200,
-      headers: { get: (k) => k.toLowerCase() === 'content-type' ? 'application/xml' : null },
+      headers: { get: (k: string) => k.toLowerCase() === 'content-type' ? 'application/xml' : null },
       text: async () => body,
     };
-  });
+  };
   return { fn, calls };
 }
 

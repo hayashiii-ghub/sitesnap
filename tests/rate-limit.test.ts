@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHostRateLimiter } from '../src/rate-limit.mjs';
+import { createHostRateLimiter } from '../src/rate-limit.ts';
 
 test('rate limiter: zero interval is a no-op', async () => {
   const limiter = createHostRateLimiter(0);

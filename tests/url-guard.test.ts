@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assertPublicUrl, isPrivateHost } from '../src/url-guard.mjs';
+import { assertPublicUrl, isPrivateHost } from '../src/url-guard.ts';
 
 test('isPrivateHost: loopback names', () => {
   assert.equal(isPrivateHost('localhost'), true);

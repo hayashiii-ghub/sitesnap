@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { VERSION, USER_AGENT, DEFAULTS } from '../src/config.mjs';
+import { VERSION, USER_AGENT, DEFAULTS } from '../src/config.ts';
 import { readFile } from 'node:fs/promises';
 
 test('VERSION matches package.json', async () => {

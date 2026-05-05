@@ -1,6 +1,6 @@
 import { XMLParser } from 'fast-xml-parser';
-import { assertPublicUrl } from './url-guard.mjs';
-import { USER_AGENT, DEFAULTS } from './config.mjs';
+import { assertPublicUrl } from './url-guard.ts';
+import { USER_AGENT, DEFAULTS } from './config.ts';
 
 const parser = new XMLParser();
 

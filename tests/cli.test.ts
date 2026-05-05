@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'cli.mjs');
+const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'cli.ts');
 
 function run(args, env = {}) {
   return new Promise((resolve) => {
