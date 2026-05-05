@@ -156,6 +156,8 @@ Output is JSON to stdout, progress logs to stderr. Exits non-zero on failure.
 
 Other agents that don't use `AGENTS.md` can paste the same snippet into their system prompt or instructions.
 
+> If you're contributing changes to sitesnap itself, see [AGENTS.md](./AGENTS.md) at the repo root for agent-oriented contributor guidelines.
+
 ---
 
 ## Configuration
