@@ -6,7 +6,7 @@ export async function makeTmpDir(prefix = 'sitesnap-test-') {
   return await mkdtemp(path.join(tmpdir(), prefix));
 }
 
-export async function cleanupTmpDir(dir) {
+export async function cleanupTmpDir(dir: string) {
   await rm(dir, { recursive: true, force: true });
 }
 
