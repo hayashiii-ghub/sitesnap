@@ -1,7 +1,7 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { expandSitemap } from '../src/sitemap.mjs';
-import { USER_AGENT } from '../src/config.mjs';
+import { USER_AGENT } from '../src/config.ts';
 import { FIXTURE_URLSET, FIXTURE_SITEMAPINDEX } from './helpers.mjs';
 
 function mockFetchSequence(responses) {

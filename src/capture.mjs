@@ -2,8 +2,8 @@ import { chromium, devices } from 'playwright';
 import { mkdir, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { DEFAULTS } from './config.mjs';
-import { assertPublicUrl } from './url-guard.mjs';
+import { DEFAULTS } from './config.ts';
+import { assertPublicUrl } from './url-guard.ts';
 
 export function slugify(url) {
   const u = new URL(url);

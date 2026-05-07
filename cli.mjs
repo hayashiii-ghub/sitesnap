@@ -6,7 +6,7 @@ import path from 'node:path';
 import { expandSitemap } from './src/sitemap.mjs';
 import { captureUrls } from './src/capture.mjs';
 import { buildSiteMeta, buildIndex } from './src/meta.mjs';
-import { DEFAULTS, VERSION } from './src/config.mjs';
+import { DEFAULTS, VERSION } from './src/config.ts';
 
 const HELP = `
 sitesnap — ウェブサイトのスクリーンショットを一括キャプチャするCLI
@@ -113,7 +113,7 @@ async function cmdSite() {
     console.error(`--limit 適用後: ${urls.length} 件のURL`);
   }
   if (urls.length === 0) { out({ urls: 0 }, () => console.log('URLが見つかりませんでした。')); return; }
-  const rateLimiter = minInterval ? (await import('./src/rate-limit.mjs')).createHostRateLimiter(minInterval) : null;
+  const rateLimiter = minInterval ? (await import('./src/rate-limit.ts')).createHostRateLimiter(minInterval) : null;
   const { domain, siteDir, results } = await captureUrls(urls, {
     forceVisible, outDir, allowPrivate, concurrency, rateLimiter,
   });

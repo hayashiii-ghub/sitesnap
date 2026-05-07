@@ -1,6 +1,6 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { USER_AGENT } from '../src/config.mjs';
+import { USER_AGENT } from '../src/config.ts';
 
 test('meta: fetchTitle sends identifiable User-Agent', async () => {
   const calls = [];
