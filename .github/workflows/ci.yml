@@ -11,39 +11,49 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          version: 10
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
+          bun-version: latest
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
 
       - name: Unit tests
-        run: npm test
+        run: bun test
+
+      - name: Build
+        run: bun run build
 
       - name: Smoke test - help
-        run: node cli.mjs help
+        run: node dist/cli.js help
+
+      - name: Smoke test - version
+        run: |
+          version=$(node dist/cli.js --version)
+          if [ "$version" != "0.3.0" ]; then
+            echo "Expected 0.3.0, got $version"; exit 1
+          fi
+          echo "OK: version is $version"
 
       - name: Smoke test - list outputs valid JSON
         run: |
-          node cli.mjs list --json | node -e "
+          node dist/cli.js list --json | node -e "
             let data = '';
             process.stdin.on('data', c => data += c);
             process.stdin.on('end', () => {
               const parsed = JSON.parse(data);
-              if (!Array.isArray(parsed)) { console.error('Expected array'); process.exit(1); }
-              console.log('OK: list returned array of', parsed.length, 'sites');
+              if (!parsed.success) { console.error('Expected success: true'); process.exit(1); }
+              if (!Array.isArray(parsed.sites)) { console.error('Expected sites array'); process.exit(1); }
+              console.log('OK: list returned array of', parsed.sites.length, 'sites');
             });
           "
 
       - name: Smoke test - exits non-zero on unknown command
         run: |
-          if node cli.mjs nonexistent 2>/dev/null; then
+          if node dist/cli.js nonexistent 2>/dev/null; then
             echo "Expected non-zero exit"; exit 1
           else
             echo "OK: rejected unknown command"
