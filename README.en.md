@@ -12,6 +12,8 @@ AI-friendly CLI for capturing website screenshots (desktop + mobile) with sitema
 - 📁 Plain JSON + PNG output (no database)
 - 🤖 Designed for AI agents (Claude Code / Codex) — ships with a Claude Code skill
 - 📡 `--json` flag for structured stdout, parseable by any agent
+- ⚙️ Structured errors (`code` + `hint`) for easy automatic retry by agents
+- 🔧 Written in TypeScript, hybrid build (Bun for development / Node.js 22+ for distribution)
 - 🌐 `meta.json` schema designed for static site generators (Astro/Next/etc.)
 
 ---
@@ -133,7 +135,7 @@ sites/                              (or wherever --out points)
 
 ### Claude Code
 
-This package ships with a skill at `.claude/skills/sitesnap/SKILL.md` (in the source repo). Drop the same skill file into a project's `.claude/skills/` to enable native invocation:
+The package ships a skill file at `skills/sitesnap/SKILL.md`. Once you `npm install -g @hayashiii/sitesnap`, Claude Code automatically detects it and lets you invoke the tool with natural language:
 
 > User: "Capture this site for me: https://example.com/sitemap.xml"
 > Claude Code automatically runs `sitesnap site …`
@@ -162,7 +164,7 @@ Other agents that don't use `AGENTS.md` can paste the same snippet into their sy
 
 ## Configuration
 
-Defaults live in `src/config.mjs` (in the source repo). When using as a globally-installed CLI, you can fork the package or contribute upstream to adjust:
+Defaults live in `src/config.ts` (in the source repo). When using as a globally-installed CLI, you can fork the package or contribute upstream to adjust:
 
 - `viewports.desktop` — desktop viewport (width × height, deviceScaleFactor)
 - `viewports.mobile` — Playwright device preset name (e.g. `"iPhone 13"`)
@@ -219,4 +221,3 @@ MIT © 2026 Hayashi
 - [GitHub repository](https://github.com/hayashiii-ghub/sitesnap)
 - [Issues](https://github.com/hayashiii-ghub/sitesnap/issues)
 - [npm](https://www.npmjs.com/package/@hayashiii/sitesnap)
-- [Bun runtime migration experiment (reference)](https://github.com/hayashiii-ghub/sitesnap/tree/experiment-bun) — exploratory branch on Bun + TypeScript, kept as a reference (not merged)

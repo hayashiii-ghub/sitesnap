@@ -8,19 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0] - 2026-05-07
 
 ### Changed
-- **TypeScript 化**: 全モジュールを `.mjs` から `.ts` へ移行（Bun 開発 + Node.js 互換 ESM 配布）
-- **bin**: `cli.mjs` から `dist/cli.js`（bun build バンドル成果物）に変更
-- **テストランナー**: `node:test` から `bun test` に移行
+- **TypeScript migration**: all modules migrated from `.mjs` to `.ts` (Bun for development + Node.js-compatible ESM bundle for distribution).
+- **bin**: switched from `cli.mjs` to `dist/cli.js` (bundled by `bun build`).
+- **Test runner**: switched from `node:test` to `bun test`.
 
 ### Added
-- **構造化エラー**: `SiteSnapError` クラスと `ErrorCode` 型を導入。すべての例外が `code` + `message` + `hint` + `context` を持つ
-- **`--json` 出力スキーマ統一**: `@hayashiii/pdfmint` と整合する `{ success, ... }` / `{ success: false, error: { code, ... } }` 形式
-- **AGENTS.md 全面リニューアル**: AIエージェントが sitesnap を**使う**ためのガイドに
-- **`skills/sitesnap/SKILL.md`**: Claude Code Skill 形式統一（pdfmint と同テンプレート）
+- **Structured errors**: introduced the `SiteSnapError` class and `ErrorCode` type. Every thrown exception now carries `code` + `message` + `hint` + `context`.
+- **Unified `--json` output schema**: aligned with `@hayashiii/pdfmint` — `{ success, ... }` for success and `{ success: false, error: { code, ... } }` for failure.
+- **AGENTS.md rewritten**: now an AI-agent-facing usage guide (was repository contributor guide before).
+- **`skills/sitesnap/SKILL.md`**: relocated and unified with the same template as pdfmint.
 
 ### Migration
-- 既存ユーザーは `npm install -g @hayashiii/sitesnap@latest` で更新可能
-- CLI コマンドの API は変更なし（`sitesnap site / page / list / open / retry` すべて同じ）
+- Existing users can upgrade via `npm install -g @hayashiii/sitesnap@latest`.
+- The CLI command API is unchanged (`sitesnap site / page / list / open / retry` all behave the same).
 
 ## [0.2.1] - 2026-05-04
 
