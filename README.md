@@ -12,6 +12,8 @@
 - 📁 データはJSON + PNGファイル(DB不要)
 - 🤖 Claude Code / Codex などのAIエージェントから1コマンドで実行可能(Claude Code Skill同梱)
 - 📡 `--json` フラグで構造化出力 → エージェントが結果をパース可能
+- ⚙️ 構造化エラー(`code` + `hint`)でエージェントが自動リトライしやすい
+- 🔧 TypeScript で実装、Bun 開発 / Node.js 22+ 配布のハイブリッド構成
 - 🌐 別プロジェクト(Astro等)から `meta.json` を読み込んで公開ポートフォリオに統合可能
 
 ---
@@ -132,7 +134,7 @@ sites/                              (--out で変更可)
 
 ### Claude Code
 
-ソースリポジトリには `.claude/skills/sitesnap/SKILL.md` が同梱されています。同じファイルを自分のプロジェクトの `.claude/skills/` にコピーすればネイティブで呼び出せるようになります:
+パッケージには `skills/sitesnap/SKILL.md` が同梱されています。`npm install -g @hayashiii/sitesnap` した瞬間から Claude Code が自動認識し、自然言語で呼び出せるようになります:
 
 > ユーザー: 「このサイト保存して: https://example.com/sitemap.xml」
 > Claude Code が自動的に `sitesnap site …` を実行
@@ -161,7 +163,7 @@ Codex CLI はプロジェクト直下の `AGENTS.md` を自動で読み込むの
 
 ## 設定変更(ソースを編集する場合)
 
-`src/config.mjs` でデフォルト値を調整できます:
+`src/config.ts` でデフォルト値を調整できます:
 
 - `viewports.desktop` … デスクトップのビューポートサイズ
 - `viewports.mobile` … モバイルのデバイス名 (Playwright `devices` 参照)
@@ -218,4 +220,3 @@ MIT © 2026 Hayashi
 - [GitHubリポジトリ](https://github.com/hayashiii-ghub/sitesnap)
 - [Issues](https://github.com/hayashiii-ghub/sitesnap/issues)
 - [npm](https://www.npmjs.com/package/@hayashiii/sitesnap)
-- [Bunランタイムへの移行実験(参考)](https://github.com/hayashiii-ghub/sitesnap/tree/experiment-bun) — Bun + TypeScript で動かしてみた版。merge せず参考として保管
