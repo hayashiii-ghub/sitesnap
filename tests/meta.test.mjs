@@ -10,7 +10,7 @@ test('meta: fetchTitle sends identifiable User-Agent', async () => {
     return { ok: true, text: async () => '<html><head><title>Hello</title></head></html>' };
   });
   try {
-    const { _fetchTitleForTest } = await import('../src/meta.mjs');
+    const { _fetchTitleForTest } = await import('../src/meta.ts');
     const title = await _fetchTitleForTest('https://example.com/');
     assert.equal(title, 'Hello');
     assert.equal(calls[0].opts?.headers?.['user-agent'], USER_AGENT);
