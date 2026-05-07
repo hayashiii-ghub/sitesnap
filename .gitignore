@@ -2,3 +2,4 @@ node_modules/
 sites/
 .DS_Store
 note-draft.md
+dist/
