@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
-import { expandSitemap } from './src/sitemap.mjs';
+import { expandSitemap } from './src/sitemap.ts';
 import { captureUrls } from './src/capture.mjs';
 import { buildSiteMeta, buildIndex } from './src/meta.ts';
 import { DEFAULTS, VERSION } from './src/config.ts';
