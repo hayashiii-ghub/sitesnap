@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-05-07
+
+### Changed
+- **TypeScript 化**: 全モジュールを `.mjs` から `.ts` へ移行（Bun 開発 + Node.js 互換 ESM 配布）
+- **bin**: `cli.mjs` から `dist/cli.js`（bun build バンドル成果物）に変更
+- **テストランナー**: `node:test` から `bun test` に移行
+
+### Added
+- **構造化エラー**: `SiteSnapError` クラスと `ErrorCode` 型を導入。すべての例外が `code` + `message` + `hint` + `context` を持つ
+- **`--json` 出力スキーマ統一**: `@hayashiii/pdfmint` と整合する `{ success, ... }` / `{ success: false, error: { code, ... } }` 形式
+- **AGENTS.md 全面リニューアル**: AIエージェントが sitesnap を**使う**ためのガイドに
+- **`skills/sitesnap/SKILL.md`**: Claude Code Skill 形式統一（pdfmint と同テンプレート）
+
+### Migration
+- 既存ユーザーは `npm install -g @hayashiii/sitesnap@latest` で更新可能
+- CLI コマンドの API は変更なし（`sitesnap site / page / list / open / retry` すべて同じ）
+
 ## [0.2.1] - 2026-05-04
 
 ### Added
