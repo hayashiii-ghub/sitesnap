@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import { readFile } from "node:fs/promises"
 import { existsSync } from "node:fs"
 import { spawn } from "node:child_process"
