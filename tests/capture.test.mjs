@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { slugify, domainOf } from '../src/capture.mjs';
+import { slugify, domainOf } from '../src/capture.ts';
 
 test('slugify: simple path', () => {
   assert.equal(slugify('https://example.com/about'), 'about');
@@ -34,7 +34,7 @@ test('domainOf returns hostname', () => {
   assert.equal(domainOf('https://example.com/foo'), 'example.com');
 });
 
-import { captureUrls } from '../src/capture.mjs';
+import { captureUrls } from '../src/capture.ts';
 
 test('captureUrls: rejects empty URL list with clear error', async () => {
   await assert.rejects(() => captureUrls([], {}), /URLが指定されていません/);

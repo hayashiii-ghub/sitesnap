@@ -2,7 +2,7 @@ import { readFile, writeFile, readdir } from "node:fs/promises"
 import { existsSync } from "node:fs"
 import path from "node:path"
 import { DEFAULTS, USER_AGENT } from "./config.ts"
-import { slugify } from "./capture.mjs"
+import { slugify } from "./capture.ts"
 
 export interface CaptureResult {
   url: string
