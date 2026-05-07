@@ -4,11 +4,11 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'cli.mjs');
+const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.ts');
 
 function run(args, env = {}) {
   return new Promise((resolve) => {
-    const child = spawn('node', [CLI, ...args], {
+    const child = spawn('bun', [CLI, ...args], {
       env: { ...process.env, ...env },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
