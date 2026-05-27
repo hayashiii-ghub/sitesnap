@@ -61,6 +61,7 @@ sitesnap open example.com
 | `sitesnap list` | キャプチャ済みサイト一覧 |
 | `sitesnap open <domain>` | Finderでサイトのフォルダを開く |
 | `sitesnap retry <domain>` | 失敗したページのみ再取得 |
+| `sitesnap doctor <run-dir>` | キャプチャ結果を診断し、再取得案やagent向け調査票を生成 |
 | `sitesnap help` | ヘルプ表示 |
 
 ### グローバルフラグ
@@ -73,6 +74,9 @@ sitesnap open example.com
 | `--limit <N>` | 最初の N 件のURLだけキャプチャ(`--exclude` 適用後の順序) |
 | `--exclude <regex>` | この正規表現にマッチするURLをスキップ(例: `'\?utm_'`) |
 | `--concurrency <N>` | 並列ワーカー数を上書き(デフォルト3) |
+| `--wait-ms <ms>` | スクリーンショット前に追加で待機 |
+| `--pre-scroll <full-page\|none>` | スクリーンショット前の自動スクロール設定 |
+| `--agent-task` | `doctor` 実行時に Codex / Claude Code / Webwright 向け調査ファイルを生成 |
 | `--min-interval <ms>` | 同一ホストへの最小間隔(ms、デフォルト 0 で無効)。サーバーに優しい運用に |
 | `--strict` | 1ページでも失敗したら非ゼロ終了(CIで使う想定) |
 | `--allow-private` | localhost/プライベートIPへのアクセスを許可(デフォルトは拒否) |
@@ -82,6 +86,22 @@ sitesnap list --json
 # → [{ "domain": "...", "pages": 45, ... }]
 
 sitesnap site https://example.com/sitemap.xml --force-visible --out ~/captures
+```
+
+### Optional: agent-assisted diagnosis
+
+通常のキャプチャ経路にAIやWebwrightは入りません。失敗した時だけ `doctor` を明示的に実行すると、最新runの `result.json` を読み、白紙っぽいスクリーンショットやtimeoutを集計して再取得案を出します。
+
+```bash
+sitesnap site https://example.com/sitemap.xml
+sitesnap doctor sites/example.com/runs/latest
+```
+
+深掘りしたい場合は、任意のagentへ渡す調査票を生成します。Webwrightは同梱せず、ユーザーが使いたいagentに `agent-task.md` を渡す設計です。
+
+```bash
+sitesnap doctor sites/example.com/runs/latest --agent-task
+# 生成: diagnosis.md, agent-task.md, suggested-sitesnap.config.json
 ```
 
 ### アニメーション対策(デフォルトで有効)
@@ -102,6 +122,8 @@ sites/                              (--out で変更可)
 ├── index.json                      全サイトのサマリ
 └── <domain>/
     ├── meta.json                   ページ一覧 + 画像パス + タイトル
+    ├── runs/latest/result.json      最新runの診断用サマリ
+    ├── runs/latest/options.json     最新runの実行オプション
     ├── desktop/<slug>.png          デスクトップ版スクショ
     └── mobile/<slug>.png           モバイル版スクショ
 ```

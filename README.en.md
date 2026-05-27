@@ -61,6 +61,7 @@ sitesnap open example.com
 | `sitesnap list` | List captured sites |
 | `sitesnap open <domain>` | Open the site's folder in Finder |
 | `sitesnap retry <domain>` | Re-capture pages that failed previously |
+| `sitesnap doctor <run-dir>` | Diagnose a capture run and generate retry or agent handoff files |
 | `sitesnap help` | Show help |
 
 ### Global flags
@@ -73,6 +74,9 @@ sitesnap open example.com
 | `--limit <N>` | Capture at most N URLs (sitemap order, after `--exclude`). |
 | `--exclude <regex>` | Skip URLs matching this regular expression (e.g., `'\?utm_'`). |
 | `--concurrency <N>` | Override worker count (default 3). |
+| `--wait-ms <ms>` | Wait before taking each screenshot. |
+| `--pre-scroll <full-page\|none>` | Control automatic pre-screenshot scrolling. |
+| `--agent-task` | With `doctor`, generate Codex / Claude Code / Webwright handoff files. |
 | `--min-interval <ms>` | Minimum delay between requests to the same host (default: 0, disabled). |
 | `--strict` | Exit with non-zero status if any page failed to capture (CI-friendly). |
 | `--allow-private` | Allow loopback / RFC1918 / link-local hosts (default refused). |
@@ -82,6 +86,22 @@ sitesnap list --json
 # → [{ "domain": "...", "pages": 45, ... }]
 
 sitesnap site https://example.com/sitemap.xml --force-visible --out ~/captures
+```
+
+### Optional: agent-assisted diagnosis
+
+AI agents and Webwright are not part of the normal capture path. When a run fails, call `doctor` explicitly. It reads the latest run's `result.json`, summarizes blank-looking screenshots and timeouts, then prints a retry suggestion.
+
+```bash
+sitesnap site https://example.com/sitemap.xml
+sitesnap doctor sites/example.com/runs/latest
+```
+
+For deeper investigation, generate a task file for your preferred agent. Webwright is not bundled; pass `agent-task.md` to Codex, Claude Code, Webwright, or another browser-capable agent.
+
+```bash
+sitesnap doctor sites/example.com/runs/latest --agent-task
+# Generates: diagnosis.md, agent-task.md, suggested-sitesnap.config.json
 ```
 
 ### Animation handling (enabled by default)
@@ -103,6 +123,8 @@ sites/                              (or wherever --out points)
 ├── index.json                      summary across all sites
 └── <domain>/
     ├── meta.json                   page list + titles + image paths
+    ├── runs/latest/result.json     latest run diagnosis summary
+    ├── runs/latest/options.json    latest run options
     ├── desktop/<slug>.png          desktop screenshots
     └── mobile/<slug>.png           mobile screenshots
 ```

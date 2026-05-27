@@ -1,7 +1,10 @@
 import { test, expect } from "bun:test";
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { cleanupTmpDir, makeTmpDir } from "./helpers";
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "cli.ts");
 
@@ -27,6 +30,9 @@ test("CLI: help mentions new flags", async () => {
   expect(stdout).toMatch(/--limit/);
   expect(stdout).toMatch(/--exclude/);
   expect(stdout).toMatch(/--concurrency/);
+  expect(stdout).toMatch(/doctor <run-dir>/);
+  expect(stdout).toMatch(/--agent-task/);
+  expect(stdout).toMatch(/--wait-ms/);
   expect(stdout).toMatch(/--strict/);
   expect(stdout).toMatch(/--allow-private/);
   expect(stdout).toMatch(/--min-interval/);
@@ -60,4 +66,37 @@ test("CLI: --version takes precedence over subcommand", async () => {
   const { stdout, code } = await run(["site", "http://localhost/sitemap.xml", "--version"]);
   expect(code).toBe(0);
   expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+});
+
+test("CLI: doctor --agent-task diagnoses a run directory and writes handoff files", async () => {
+  const dir = await makeTmpDir("sitesnap-cli-doctor-");
+  try {
+    await mkdir(path.join(dir, "screenshots", "mobile"), { recursive: true });
+    await writeFile(
+      path.join(dir, "result.json"),
+      JSON.stringify({
+        domain: "example.com",
+        captures: [
+          {
+            url: "https://example.com/about",
+            viewport: "mobile",
+            status: "failed",
+            reason: "blank_screenshot",
+            screenshotPath: "screenshots/mobile/about.png",
+          },
+        ],
+      })
+    );
+
+    const { stdout, code } = await run(["doctor", dir, "--agent-task"]);
+
+    expect(code).toBe(0);
+    expect(stdout).toContain("1件のスクリーンショットが白紙っぽいです。");
+    expect(stdout).toContain("Suggested retry:");
+    expect(existsSync(path.join(dir, "diagnosis.md"))).toBe(true);
+    expect(existsSync(path.join(dir, "agent-task.md"))).toBe(true);
+    expect(existsSync(path.join(dir, "suggested-sitesnap.config.json"))).toBe(true);
+  } finally {
+    await cleanupTmpDir(dir);
+  }
 });

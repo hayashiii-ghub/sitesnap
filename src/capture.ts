@@ -18,6 +18,8 @@ export interface CaptureOptions {
   outDir?: string
   concurrency?: number
   forceVisible?: boolean
+  waitMs?: number
+  preScroll?: "full-page" | "none"
   allowPrivate?: boolean
   dryRun?: boolean
   force?: boolean
@@ -31,6 +33,8 @@ export interface CaptureResult {
   slug: string
   skipped?: boolean
   title?: string
+  httpStatus?: number
+  durationMs?: number
   error?: string
 }
 
@@ -109,6 +113,7 @@ async function captureOne(
   siteDir: string,
   opts: CaptureOptions = {}
 ): Promise<CaptureResult> {
+  const startedAt = Date.now()
   const slug = slugify(url)
   const file = path.join(siteDir, mode, `${slug}.png`)
 
@@ -125,8 +130,10 @@ async function captureOne(
   })
   const page = await ctx.newPage()
   let title = ""
+  let httpStatus: number | undefined
   try {
-    await page.goto(url, { waitUntil: "networkidle", timeout: DEFAULTS.navigationTimeout })
+    const response = await page.goto(url, { waitUntil: "networkidle", timeout: DEFAULTS.navigationTimeout })
+    httpStatus = response?.status()
     title = await page.title()
 
     await page.addStyleTag({ content: FREEZE_ANIMATIONS_CSS })
@@ -134,7 +141,13 @@ async function captureOne(
       await page.addStyleTag({ content: FORCE_VISIBLE_CSS })
     }
 
-    await autoScroll(page)
+    if (opts.waitMs && opts.waitMs > 0) {
+      await page.waitForTimeout(opts.waitMs)
+    }
+
+    if (opts.preScroll !== "none") {
+      await autoScroll(page)
+    }
 
     await page.evaluate(() => (document as Document & { fonts?: { ready?: Promise<unknown> } }).fonts?.ready).catch(() => {})
     await page
@@ -145,7 +158,7 @@ async function captureOne(
   } finally {
     await ctx.close()
   }
-  return { url, mode, file, slug, title }
+  return { url, mode, file, slug, title, httpStatus, durationMs: Date.now() - startedAt }
 }
 
 export async function captureUrls(urls: string[], opts: CaptureOptions = {}): Promise<CaptureSummary> {
