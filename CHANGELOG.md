@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-05-27
+
+### Added
+- **`sitesnap doctor <run-dir>`**: diagnose a capture run from `runs/latest/result.json`, summarizing failed captures, blank-looking screenshots, timeouts, and HTTP errors.
+- **Agent handoff files**: `sitesnap doctor <run-dir> --agent-task` now generates `diagnosis.md`, `agent-task.md`, and `suggested-sitesnap.config.json` for Codex, Claude Code, Webwright, or other browser-capable agents.
+- **Run artifacts**: `site`, `page`, and `retry` now write `runs/latest/result.json` and `runs/latest/options.json` so failed runs can be inspected after capture.
+- **Capture tuning flags**: added `--wait-ms <ms>` and `--pre-scroll <full-page|none>` for retrying pages that need extra wait time or custom pre-screenshot scrolling.
+
+### Notes
+- Webwright, LLM API keys, Python, and agent runtimes are not bundled with sitesnap. Agent-assisted diagnosis is opt-in via generated handoff files.
+- Config auto-loading is not included in this release; `suggested-sitesnap.config.json` is an agent/human review artifact for now.
+
 ## [0.3.0] - 2026-05-07
 
 ### Changed

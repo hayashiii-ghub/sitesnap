@@ -32,9 +32,10 @@ jobs:
 
       - name: Smoke test - version
         run: |
+          expected=$(node -p "require('./package.json').version")
           version=$(node dist/cli.js --version)
-          if [ "$version" != "0.3.0" ]; then
-            echo "Expected 0.3.0, got $version"; exit 1
+          if [ "$version" != "$expected" ]; then
+            echo "Expected $expected, got $version"; exit 1
           fi
           echo "OK: version is $version"
 
