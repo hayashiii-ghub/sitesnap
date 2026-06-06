@@ -4,6 +4,7 @@ import { buildCommands } from "./commands.ts"
 import { formatError } from "./output.ts"
 
 const rawArgv = process.argv.slice(2)
+const wantsJson = rawArgv.includes("--json")
 
 if (rawArgv.includes("--version") || rawArgv.includes("-v")) {
   console.log(VERSION)
@@ -14,7 +15,11 @@ let ctx
 try {
   ctx = parseCliArgs(rawArgv)
 } catch (e) {
-  console.error(e instanceof Error ? e.message : String(e))
+  if (wantsJson) {
+    console.log(formatError(e, "json"))
+  } else {
+    console.error(formatError(e, "text"))
+  }
   process.exit(1)
 }
 
@@ -31,7 +36,10 @@ if (!fn) {
 }
 
 try {
-  await fn(ctx)
+  const result = await fn(ctx)
+  if (result.stdout) process.stdout.write(`${result.stdout}\n`)
+  if (result.stderr) process.stderr.write(`${result.stderr}\n`)
+  process.exit(result.exitCode)
 } catch (e) {
   // SiteSnapError 含む全エラーを構造化出力
   if (ctx.json) {

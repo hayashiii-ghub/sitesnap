@@ -50,6 +50,22 @@ test("CLI: page rejects file:// scheme", async () => {
   expect(stderr).toMatch(/プロトコル/);
 });
 
+test("CLI: invalid numeric option fails as structured JSON before command execution", async () => {
+  const { code, stdout, stderr } = await run([
+    "site",
+    "https://example.com/sitemap.xml",
+    "--limit",
+    "abc",
+    "--json",
+  ]);
+  expect(code).toBe(1);
+  expect(stderr).toBe("");
+  const parsed = JSON.parse(stdout);
+  expect(parsed.success).toBe(false);
+  expect(parsed.error.code).toBe("INVALID_OPTION");
+  expect(parsed.error.hint).toContain("--limit");
+});
+
 test("CLI: --version prints version and exits 0", async () => {
   const { stdout, code } = await run(["--version"]);
   expect(code).toBe(0);

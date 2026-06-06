@@ -1,6 +1,7 @@
 import path from "node:path"
 import type { CaptureOptions } from "./capture.ts"
 import { DEFAULTS } from "./config.ts"
+import { SiteSnapError } from "./errors.ts"
 
 export const HELP = `
 sitesnap — ウェブサイトのスクリーンショットを一括キャプチャするCLI
@@ -52,6 +53,26 @@ export interface CliContext {
   minInterval: number | null
 }
 
+function invalidOption(message: string, hint = "sitesnap help で利用可能なオプションを確認してください。"): SiteSnapError {
+  return new SiteSnapError("INVALID_OPTION", message, hint, {})
+}
+
+function parsePositiveInteger(value: string, flag: string): number {
+  const n = Number(value)
+  if (!Number.isInteger(n) || n <= 0) {
+    throw invalidOption(`${flag} には正の整数を指定してください: ${value}`, `${flag} <N> の形式で指定してください。`)
+  }
+  return n
+}
+
+function parseNonNegativeInteger(value: string, flag: string): number {
+  const n = Number(value)
+  if (!Number.isInteger(n) || n < 0) {
+    throw invalidOption(`${flag} には0以上の整数を指定してください: ${value}`, `${flag} <ms> の形式で指定してください。`)
+  }
+  return n
+}
+
 export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): CliContext {
   const sub = argv[0]
   const json = argv.includes("--json")
@@ -85,26 +106,29 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
     if (valueFlags.has(a)) {
       const v = argv[++i]
       if (v === undefined) {
-        throw new Error(`${a} に値が指定されていません`)
+        throw invalidOption(`${a} に値が指定されていません`, `${a} <value> の形式で指定してください。`)
       }
       if (a === "--out") outDir = v
-      else if (a === "--limit") limit = Number(v)
+      else if (a === "--limit") limit = parsePositiveInteger(v, a)
       else if (a === "--exclude") {
         try {
           exclude = new RegExp(v)
         } catch (e) {
-          throw new Error(`--exclude の正規表現が不正です: ${(e as Error).message}`)
+          throw invalidOption(`--exclude の正規表現が不正です: ${(e as Error).message}`, "--exclude <regex> の形式で指定してください。")
         }
-      } else if (a === "--concurrency") concurrency = Number(v)
-      else if (a === "--min-interval") minInterval = Number(v)
-      else if (a === "--wait-ms") waitMs = Number(v)
+      } else if (a === "--concurrency") concurrency = parsePositiveInteger(v, a)
+      else if (a === "--min-interval") minInterval = parseNonNegativeInteger(v, a)
+      else if (a === "--wait-ms") waitMs = parseNonNegativeInteger(v, a)
       else if (a === "--pre-scroll") {
         if (v !== "full-page" && v !== "none") {
-          throw new Error("--pre-scroll は full-page または none を指定してください")
+          throw invalidOption("--pre-scroll は full-page または none を指定してください", "--pre-scroll <full-page|none> の形式で指定してください。")
         }
         preScroll = v
       }
       continue
+    }
+    if (a.startsWith("-")) {
+      throw invalidOption(`未知のオプションです: ${a}`)
     }
     args.push(a)
   }

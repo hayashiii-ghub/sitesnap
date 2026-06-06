@@ -1,4 +1,5 @@
 export type ErrorCode =
+  | "INVALID_OPTION"
   | "INVALID_URL"
   | "PRIVATE_URL_BLOCKED"
   | "SITEMAP_FETCH_FAILED"

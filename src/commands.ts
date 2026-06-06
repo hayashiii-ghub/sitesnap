@@ -9,7 +9,13 @@ import { buildIndex, buildSiteMeta, type SiteMeta } from "./meta.ts"
 import { formatSuccess } from "./output.ts"
 import { expandSitemap } from "./sitemap.ts"
 
-export type CommandHandler = (ctx: CliContext) => Promise<void>
+export interface CommandResult {
+  exitCode: number
+  stdout: string
+  stderr: string
+}
+
+export type CommandHandler = (ctx: CliContext) => Promise<CommandResult>
 
 function artifactOptions(ctx: CliContext): Record<string, unknown> {
   return { ...ctx.captureOptions }
@@ -24,36 +30,46 @@ async function readMeta(ctx: CliContext, domain: string): Promise<SiteMeta | nul
 function out(
   ctx: CliContext,
   data: Record<string, unknown>,
-  humanFn?: (data: Record<string, unknown>) => void
-): void {
+  humanFn?: (data: Record<string, unknown>) => string
+): CommandResult {
   if (ctx.json) {
-    console.log(formatSuccess(data, "json"))
-  } else if (humanFn) {
-    humanFn(data)
+    return ok(formatSuccess(data, "json"))
   }
+  return ok(humanFn ? humanFn(data) : "")
 }
 
-async function cmdSite(ctx: CliContext): Promise<void> {
+function ok(stdout = "", stderr = ""): CommandResult {
+  return { exitCode: 0, stdout, stderr }
+}
+
+function fail(stderr: string): CommandResult {
+  return { exitCode: 1, stdout: "", stderr }
+}
+
+function withExitCode(result: CommandResult, exitCode: number): CommandResult {
+  return { ...result, exitCode }
+}
+
+async function cmdSite(ctx: CliContext): Promise<CommandResult> {
   const sitemapUrl = ctx.args[0]
   if (!sitemapUrl) {
-    console.error("使い方: sitesnap site <sitemap-url>")
-    process.exit(1)
+    return fail("使い方: sitesnap site <sitemap-url>")
   }
-  console.error(`sitemapを展開中: ${sitemapUrl}`)
+  const logs = [`sitemapを展開中: ${sitemapUrl}`]
   let urls = await expandSitemap(sitemapUrl, { allowPrivate: ctx.captureOptions.allowPrivate })
-  console.error(`${urls.length} 件のURLを検出`)
+  logs.push(`${urls.length} 件のURLを検出`)
   if (ctx.exclude) {
     const before = urls.length
     urls = urls.filter((u) => !ctx.exclude!.test(u))
-    console.error(`--exclude 適用後: ${urls.length} 件のURL (${before - urls.length} 件除外)`)
+    logs.push(`--exclude 適用後: ${urls.length} 件のURL (${before - urls.length} 件除外)`)
   }
   if (ctx.limit && urls.length > ctx.limit) {
     urls = urls.slice(0, ctx.limit)
-    console.error(`--limit 適用後: ${urls.length} 件のURL`)
+    logs.push(`--limit 適用後: ${urls.length} 件のURL`)
   }
   if (urls.length === 0) {
-    out(ctx, { urls: 0 }, () => console.log("URLが見つかりませんでした。"))
-    return
+    const result = out(ctx, { urls: 0 }, () => "URLが見つかりませんでした。")
+    return { ...result, stderr: logs.join("\n") }
   }
   const rateLimiter = ctx.minInterval
     ? (await import("./rate-limit.ts")).createHostRateLimiter(ctx.minInterval)
@@ -76,7 +92,7 @@ async function cmdSite(ctx: CliContext): Promise<void> {
   const errors = results
     .filter((r) => r.error)
     .map((r) => ({ url: r.url, mode: r.mode, error: r.error! }))
-  out(
+  const result = out(
     ctx,
     {
       domain,
@@ -89,19 +105,16 @@ async function cmdSite(ctx: CliContext): Promise<void> {
     },
     (r) => {
       const errCount = (r.errors as unknown[]).length
-      console.log(
-        `\n完了: ${r.captured_pages}/${r.pages} ページ → ${path.relative(process.cwd(), siteDir!)}/meta.json${errCount ? ` (${errCount} 件のエラー)` : ""}`
-      )
+      return `\n完了: ${r.captured_pages}/${r.pages} ページ → ${path.relative(process.cwd(), siteDir!)}/meta.json${errCount ? ` (${errCount} 件のエラー)` : ""}`
     }
   )
-  if (ctx.strict && errors.length > 0) process.exit(1)
+  return withExitCode({ ...result, stderr: logs.join("\n") }, ctx.strict && errors.length > 0 ? 1 : 0)
 }
 
-async function cmdPage(ctx: CliContext): Promise<void> {
+async function cmdPage(ctx: CliContext): Promise<CommandResult> {
   const url = ctx.args[0]
   if (!url) {
-    console.error("使い方: sitesnap page <url>")
-    process.exit(1)
+    return fail("使い方: sitesnap page <url>")
   }
   const { domain, siteDir, results } = await captureUrls([url], {
     ...ctx.captureOptions,
@@ -120,7 +133,7 @@ async function cmdPage(ctx: CliContext): Promise<void> {
   await buildIndex(ctx.outDir)
   const page = meta.pages.find((p) => p.url === url)
   const failed = results.filter((r) => r.error)
-  out(
+  const result = out(
     ctx,
     {
       domain,
@@ -134,41 +147,36 @@ async function cmdPage(ctx: CliContext): Promise<void> {
     (r) => {
       const desktop = r.desktop as boolean
       const mobile = r.mobile as boolean
-      console.log(
-        `\n完了: ${r.url} → ${path.relative(process.cwd(), siteDir!)}/${desktop && mobile ? "(デスクトップ+モバイル)" : desktop ? "(デスクトップのみ)" : mobile ? "(モバイルのみ)" : "(失敗)"}`
-      )
+      return `\n完了: ${r.url} → ${path.relative(process.cwd(), siteDir!)}/${desktop && mobile ? "(デスクトップ+モバイル)" : desktop ? "(デスクトップのみ)" : mobile ? "(モバイルのみ)" : "(失敗)"}`
     }
   )
-  if (ctx.strict && failed.length > 0) process.exit(1)
+  return withExitCode(result, ctx.strict && failed.length > 0 ? 1 : 0)
 }
 
-async function cmdList(ctx: CliContext): Promise<void> {
+async function cmdList(ctx: CliContext): Promise<CommandResult> {
   const sites = await buildIndex(ctx.outDir)
   if (ctx.json) {
-    console.log(JSON.stringify({ success: true, sites }, null, 2))
-  } else {
-    if (sites.length === 0) {
-      console.log(`まだキャプチャ済みサイトはありません (確認先: ${ctx.outDir})。`)
-      return
-    }
-    console.log(`キャプチャ済みサイト一覧 (${ctx.outDir}):\n`)
-    for (const s of sites) {
-      const date = s.captured_at?.slice(0, 10) || "?"
-      console.log(`  ${s.domain.padEnd(30)} ${s.captured_pages}/${s.pages} ページ   ${date}`)
-    }
+    return ok(JSON.stringify({ success: true, sites }, null, 2))
   }
+  if (sites.length === 0) {
+    return ok(`まだキャプチャ済みサイトはありません (確認先: ${ctx.outDir})。`)
+  }
+  const lines = [`キャプチャ済みサイト一覧 (${ctx.outDir}):`, ""]
+  for (const s of sites) {
+    const date = s.captured_at?.slice(0, 10) || "?"
+    lines.push(`  ${s.domain.padEnd(30)} ${s.captured_pages}/${s.pages} ページ   ${date}`)
+  }
+  return ok(lines.join("\n"))
 }
 
-async function cmdOpen(ctx: CliContext): Promise<void> {
+async function cmdOpen(ctx: CliContext): Promise<CommandResult> {
   const domain = ctx.args[0]
   if (!domain) {
-    console.error("使い方: sitesnap open <domain>")
-    process.exit(1)
+    return fail("使い方: sitesnap open <domain>")
   }
   const dir = path.resolve(ctx.outDir, domain)
   if (!existsSync(dir)) {
-    console.error(`${domain} のキャプチャがありません: ${dir}`)
-    process.exit(1)
+    return fail(`${domain} のキャプチャがありません: ${dir}`)
   }
   const opener =
     process.platform === "darwin"
@@ -177,28 +185,25 @@ async function cmdOpen(ctx: CliContext): Promise<void> {
         ? { cmd: "explorer", args: [dir] }
         : { cmd: "xdg-open", args: [dir] }
   spawn(opener.cmd, opener.args, { stdio: "ignore", detached: true }).unref()
-  out(ctx, { domain, opened: dir }, (r) => console.log(`開きました: ${r.opened}`))
+  return out(ctx, { domain, opened: dir }, (r) => `開きました: ${r.opened}`)
 }
 
-async function cmdRetry(ctx: CliContext): Promise<void> {
+async function cmdRetry(ctx: CliContext): Promise<CommandResult> {
   const domain = ctx.args[0]
   if (!domain) {
-    console.error("使い方: sitesnap retry <domain>")
-    process.exit(1)
+    return fail("使い方: sitesnap retry <domain>")
   }
   const meta = await readMeta(ctx, domain)
   if (!meta) {
-    console.error(`meta.json が見つかりません: ${path.join(ctx.outDir, domain)}`)
-    process.exit(1)
+    return fail(`meta.json が見つかりません: ${path.join(ctx.outDir, domain)}`)
   }
   const failedUrls = meta.pages
     .filter((p) => !p.desktop || !p.mobile || p.desktop_error || p.mobile_error)
     .map((p) => p.url)
   if (failedUrls.length === 0) {
-    out(ctx, { domain, retried: 0 }, () => console.log("再取得対象のページはありません。"))
-    return
+    return out(ctx, { domain, retried: 0 }, () => "再取得対象のページはありません。")
   }
-  console.error(`${failedUrls.length} 件のページを再取得中...`)
+  const logs = [`${failedUrls.length} 件のページを再取得中...`]
   const { siteDir, results } = await captureUrls(failedUrls, {
     force: true,
     ...ctx.captureOptions,
@@ -223,32 +228,28 @@ async function cmdRetry(ctx: CliContext): Promise<void> {
   const stillFailing = newMeta.pages.filter(
     (p) => failedUrls.includes(p.url) && (!p.desktop || !p.mobile)
   ).length
-  out(
+  const result = out(
     ctx,
     { domain, retried: failedUrls.length, still_failing: stillFailing, run_dir: runDir },
     (r) =>
-      console.log(
-        `再取得完了: ${(r.retried as number) - (r.still_failing as number)}/${r.retried} 件が新たにキャプチャされました。`
-      )
+      `再取得完了: ${(r.retried as number) - (r.still_failing as number)}/${r.retried} 件が新たにキャプチャされました。`
   )
-  if (ctx.strict && stillFailing > 0) process.exit(1)
+  return withExitCode({ ...result, stderr: logs.join("\n") }, ctx.strict && stillFailing > 0 ? 1 : 0)
 }
 
-async function cmdDoctor(ctx: CliContext): Promise<void> {
+async function cmdDoctor(ctx: CliContext): Promise<CommandResult> {
   const runDir = ctx.args[0]
   if (!runDir) {
-    console.error("使い方: sitesnap doctor <run-dir>")
-    process.exit(1)
+    return fail("使い方: sitesnap doctor <run-dir>")
   }
   const resolvedRunDir = path.resolve(runDir)
   if (!existsSync(resolvedRunDir)) {
-    console.error(`run-dir が見つかりません: ${resolvedRunDir}`)
-    process.exit(1)
+    return fail(`run-dir が見つかりません: ${resolvedRunDir}`)
   }
 
   const report = await analyzeRunDirectory(resolvedRunDir)
   const written = ctx.agentTask ? await writeDoctorFiles(resolvedRunDir, report) : []
-  out(
+  return out(
     ctx,
     {
       domain: report.domain,
@@ -261,18 +262,18 @@ async function cmdDoctor(ctx: CliContext): Promise<void> {
       generated_files: written,
     },
     () => {
-      console.log(`${report.failedCaptures}件の失敗キャプチャを検出しました。`)
-      if (report.blankCaptures > 0) console.log(`${report.blankCaptures}件のスクリーンショットが白紙っぽいです。`)
-      if (report.timeoutCaptures > 0) console.log(`${report.timeoutCaptures}件がtimeoutしています。`)
-      if (report.httpErrorCaptures > 0) console.log(`${report.httpErrorCaptures}件がHTTPエラーです。`)
+      const lines = [`${report.failedCaptures}件の失敗キャプチャを検出しました。`]
+      if (report.blankCaptures > 0) lines.push(`${report.blankCaptures}件のスクリーンショットが白紙っぽいです。`)
+      if (report.timeoutCaptures > 0) lines.push(`${report.timeoutCaptures}件がtimeoutしています。`)
+      if (report.httpErrorCaptures > 0) lines.push(`${report.httpErrorCaptures}件がHTTPエラーです。`)
       if (report.suggestedRetry) {
-        console.log("\nSuggested retry:")
-        console.log(report.suggestedRetry)
+        lines.push("", "Suggested retry:", report.suggestedRetry)
       }
       if (written.length > 0) {
-        console.log("\nGenerated:")
-        for (const file of written) console.log(`- ${path.relative(process.cwd(), file)}`)
+        lines.push("", "Generated:")
+        for (const file of written) lines.push(`- ${path.relative(process.cwd(), file)}`)
       }
+      return lines.join("\n")
     }
   )
 }
