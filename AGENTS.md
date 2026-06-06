@@ -9,6 +9,7 @@
 - The user asks to capture screenshots of a website
 - The user wants to archive a website's pages as PNG images
 - The user references a sitemap.xml for batch capture
+- A captured run failed and the user wants retry guidance or an agent handoff task
 
 ## Quick Reference
 
@@ -28,6 +29,41 @@ Always pass `--json` when invoked by an agent for structured output.
 
 - HTTP/HTTPS URLs (publicly accessible)
 - Use `--allow-private` for localhost/private IPs
+- `sitesnap site` expects sitemap XML; use `sitesnap page` for ordinary HTML pages
+
+## Capture options
+
+```bash
+sitesnap site https://example.com/sitemap.xml \
+  --concurrency 3 \
+  --min-interval 250 \
+  --json
+```
+
+- Use `--out <dir>` when captures should be written outside `./sites/`.
+- Use `--force-visible` when screenshots are blank because content is hidden by scroll-reveal animations.
+- Use `--limit <N>` during exploration before capturing a large sitemap.
+- Use `--exclude <regex>` to skip tracking URLs or irrelevant page groups.
+- Use `--wait-ms <ms>` and `--pre-scroll <full-page|none>` when a retry needs different screenshot timing.
+- Use `--strict` in CI when any failed page should fail the command.
+
+## Diagnosis and agent handoff
+
+Capture commands write run artifacts under `runs/latest/`. When a run fails, inspect it with:
+
+```bash
+sitesnap doctor sites/example.com/runs/latest --json
+```
+
+For deeper browser investigation, generate files for another agent:
+
+```bash
+sitesnap doctor sites/example.com/runs/latest --agent-task --json
+```
+
+- `diagnosis.md` summarizes the failed run.
+- `agent-task.md` is safe to hand to Codex, Claude Code, Webwright, or another browser-capable agent.
+- `suggested-sitesnap.config.json` is a suggestion artifact only; sitesnap does not auto-load it yet.
 
 ## Output (`--json`)
 
@@ -104,11 +140,24 @@ sitesnap page https://example.com/about --json
 sitesnap site https://example.com/sitemap.xml --concurrency 3 --min-interval 250 --json
 ```
 
+### Retry failed pages
+```bash
+sitesnap retry example.com --force-visible --wait-ms 1000 --json
+```
+
+### Generate diagnosis files
+```bash
+sitesnap doctor sites/example.com/runs/latest --agent-task --json
+```
+
 ## Best practices for AI agents
 
 - **Always use `--json`** for parseable output
-- **Default output dir**: `./sites/<domain>/` — use `--out` to override
+- **Default output dir**: `./sites/<domain>/` — use `--out` to override and report absolute paths back to the user
 - **For sites with lazy-loaded content**: try `--force-visible`
 - **For private/local URLs**: use `--allow-private`
 - **On `BROWSER_LAUNCH_FAILED`**: suggest `bunx playwright install chromium`
 - **On batch failures**: parse the `errors` array in the result; retry individually with `sitesnap page`
+- **For failed runs**: use `sitesnap doctor <run-dir> --json` before guessing a retry strategy
+- **For large sitemaps**: start with `--limit` before running a full capture
+- **For server-friendly captures**: keep concurrency modest and add `--min-interval`

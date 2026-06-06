@@ -21,12 +21,13 @@ AI-friendly CLI for capturing website screenshots (desktop + mobile) with sitema
 ## Install
 
 ```bash
-# global install (recommended)
+# Node.js (npm)
 npm install -g @hayashiii/sitesnap
-# or: pnpm add -g @hayashiii/sitesnap
-# or: yarn global add @hayashiii/sitesnap
 
-# install Playwright's Chromium browser (one-time)
+# or Bun
+bun install -g @hayashiii/sitesnap
+
+# one-time Playwright Chromium install
 npx playwright install chromium
 ```
 
@@ -48,6 +49,9 @@ sitesnap list
 
 # open a captured site's folder in Finder (macOS)
 sitesnap open example.com
+
+# AI agent integration (JSON output)
+sitesnap site https://example.com/sitemap.xml --json
 ```
 
 ---
@@ -64,28 +68,74 @@ sitesnap open example.com
 | `sitesnap doctor <run-dir>` | Diagnose a capture run and generate retry or agent handoff files |
 | `sitesnap help` | Show help |
 
-### Global flags
+### Flags
 
-| Flag | Purpose |
-|---|---|
-| `--json` | Machine-readable JSON output to stdout (progress logs go to stderr). AI-agent friendly. |
-| `--force-visible` | Force-show elements hidden by scroll-reveal libraries (AOS, wow.js, etc.). **Use when screenshots come out blank.** |
-| `--out <dir>` | Output directory (default: `./sites/` in current working dir). Also configurable via `SITESNAP_OUT` env var. |
-| `--limit <N>` | Capture at most N URLs (sitemap order, after `--exclude`). |
-| `--exclude <regex>` | Skip URLs matching this regular expression (e.g., `'\?utm_'`). |
-| `--concurrency <N>` | Override worker count (default 3). |
-| `--wait-ms <ms>` | Wait before taking each screenshot. |
-| `--pre-scroll <full-page\|none>` | Control automatic pre-screenshot scrolling. |
-| `--agent-task` | With `doctor`, generate Codex / Claude Code / Webwright handoff files. |
-| `--min-interval <ms>` | Minimum delay between requests to the same host (default: 0, disabled). |
-| `--strict` | Exit with non-zero status if any page failed to capture (CI-friendly). |
-| `--allow-private` | Allow loopback / RFC1918 / link-local hosts (default refused). |
+| Flag | Default | Description |
+|---|---|---|
+| `--json` | off | Machine-readable JSON output to stdout; progress logs go to stderr |
+| `--force-visible` | off | Force-show elements hidden by scroll-reveal libraries (AOS, wow.js, etc.). **Use when screenshots come out blank.** |
+| `--out <dir>` | `./sites/` | Output directory. Also configurable via `SITESNAP_OUT` env var |
+| `--limit <N>` | off | Capture at most N URLs (sitemap order, after `--exclude`) |
+| `--exclude <regex>` | off | Skip URLs matching this regular expression (e.g., `'\?utm_'`) |
+| `--concurrency <N>` | 3 | Override worker count |
+| `--wait-ms <ms>` | off | Wait before taking each screenshot |
+| `--pre-scroll <full-page\|none>` | `full-page` | Control automatic pre-screenshot scrolling |
+| `--agent-task` | off | With `doctor`, generate Codex / Claude Code / Webwright handoff files |
+| `--min-interval <ms>` | 0 | Minimum delay between requests to the same host |
+| `--strict` | off | Exit with non-zero status if any page failed to capture |
+| `--allow-private` | off | Allow loopback / RFC1918 / link-local hosts |
 
 ```bash
 sitesnap list --json
 # → [{ "domain": "...", "pages": 45, ... }]
 
 sitesnap site https://example.com/sitemap.xml --force-visible --out ~/captures
+```
+
+## JSON output examples
+
+Single-page capture:
+
+```json
+{
+  "success": true,
+  "domain": "example.com",
+  "url": "https://example.com/about",
+  "desktop": true,
+  "mobile": true,
+  "errors": [],
+  "out_dir": "/abs/sites",
+  "run_dir": "/abs/sites/example.com/runs/latest"
+}
+```
+
+Sitemap capture:
+
+```json
+{
+  "success": true,
+  "domain": "example.com",
+  "source": "https://example.com/sitemap.xml",
+  "pages": 10,
+  "captured_pages": 9,
+  "errors": [{ "url": "https://example.com/missing", "mode": "desktop", "error": "..." }],
+  "out_dir": "/abs/sites",
+  "run_dir": "/abs/sites/example.com/runs/latest"
+}
+```
+
+Error:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_URL",
+    "message": "Invalid URL",
+    "hint": "Pass an http:// or https:// URL",
+    "url": "example.com"
+  }
+}
 ```
 
 ### Optional: agent-assisted diagnosis
@@ -182,6 +232,18 @@ Other agents that don't use `AGENTS.md` can paste the same snippet into their sy
 
 > If you're contributing changes to sitesnap itself, see [AGENTS.md](./AGENTS.md) at the repo root for agent-oriented contributor guidelines.
 
+## Development
+
+```bash
+git clone https://github.com/hayashiii-ghub/sitesnap.git
+cd sitesnap
+bun install
+bun test
+bun src/cli.ts list --json  # run directly
+bun run build               # generate dist/cli.js
+bun run pack:smoke          # verify npm package contents and installed CLI
+```
+
 ---
 
 ## Configuration
@@ -229,6 +291,7 @@ Image paths in `meta.json` are relative (`desktop/<slug>.png`), so combine with 
 - **Screenshots are not pushed to git** by default — you should `.gitignore` the image folders. The `meta.json` files are small and tracking them is recommended.
 - **Login-protected pages are not yet supported** — Playwright's `storageState` integration is on the roadmap.
 - **Heavy SPAs** are waited on with `networkidle` + scroll, but if pages slip through, use `sitesnap retry <domain>` to re-capture only failed ones.
+- **AI-agent integration**: always pass `--json` so progress logs stay on stderr and the result JSON stays on stdout.
 
 ---
 
@@ -243,3 +306,5 @@ MIT © 2026 Hayashi
 - [GitHub repository](https://github.com/hayashiii-ghub/sitesnap)
 - [Issues](https://github.com/hayashiii-ghub/sitesnap/issues)
 - [npm](https://www.npmjs.com/package/@hayashiii/sitesnap)
+- [AGENTS.md](./AGENTS.md) — AI-agent guide
+- [CHANGELOG](./CHANGELOG.md)
