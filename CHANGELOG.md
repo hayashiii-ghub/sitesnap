@@ -11,10 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `pack:smoke` to verify npm package contents and the installed `sitesnap --version` command before publishing.
 - Added CI verification for the npm package smoke test.
 - Added README JSON output examples and development instructions aligned with `@hayashiii/pdfmint`.
+- Added validation for numeric CLI flags before command execution.
 
 ### Changed
 - Expanded `AGENTS.md` and `skills/sitesnap/SKILL.md` with clearer AI-agent invocation, retry, diagnosis, and recovery guidance.
 - Aligned README flag tables with the `@hayashiii/pdfmint` format by documenting defaults and descriptions.
+- Refactored command handlers to return structured command results instead of writing directly to process state.
 
 ## [0.4.0] - 2026-05-27
 
