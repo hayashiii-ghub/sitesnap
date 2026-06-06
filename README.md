@@ -21,12 +21,13 @@
 ## インストール
 
 ```bash
-# グローバルインストール(推奨)
+# Node.js (npm)
 npm install -g @hayashiii/sitesnap
-# または: pnpm add -g @hayashiii/sitesnap
-# または: yarn global add @hayashiii/sitesnap
 
-# Playwright の Chromium ブラウザを取得(初回のみ)
+# または Bun
+bun install -g @hayashiii/sitesnap
+
+# 初回のみ Playwright Chromium を取得
 npx playwright install chromium
 ```
 
@@ -48,11 +49,14 @@ sitesnap list
 
 # サイトのフォルダを Finder で開く(macOS)
 sitesnap open example.com
+
+# AIエージェント連携(JSON出力)
+sitesnap site https://example.com/sitemap.xml --json
 ```
 
 ---
 
-## コマンド一覧
+## コマンド
 
 | コマンド | 用途 |
 |---|---|
@@ -64,28 +68,74 @@ sitesnap open example.com
 | `sitesnap doctor <run-dir>` | キャプチャ結果を診断し、再取得案やagent向け調査票を生成 |
 | `sitesnap help` | ヘルプ表示 |
 
-### グローバルフラグ
+### フラグ
 
-| フラグ | 用途 |
-|---|---|
-| `--json` | 構造化JSON出力(stdoutにJSON、進捗ログはstderr)。AIエージェントから扱いやすい |
-| `--force-visible` | スクロール連動アニメで隠れた要素を強制表示。**スクショが真っ白な時に使う**(AOS, wow.js 等対策) |
-| `--out <dir>` | 出力先ディレクトリ(デフォルト: カレントディレクトリの `./sites/`)。`SITESNAP_OUT` 環境変数でも指定可 |
-| `--limit <N>` | 最初の N 件のURLだけキャプチャ(`--exclude` 適用後の順序) |
-| `--exclude <regex>` | この正規表現にマッチするURLをスキップ(例: `'\?utm_'`) |
-| `--concurrency <N>` | 並列ワーカー数を上書き(デフォルト3) |
-| `--wait-ms <ms>` | スクリーンショット前に追加で待機 |
-| `--pre-scroll <full-page\|none>` | スクリーンショット前の自動スクロール設定 |
-| `--agent-task` | `doctor` 実行時に Codex / Claude Code / Webwright 向け調査ファイルを生成 |
-| `--min-interval <ms>` | 同一ホストへの最小間隔(ms、デフォルト 0 で無効)。サーバーに優しい運用に |
-| `--strict` | 1ページでも失敗したら非ゼロ終了(CIで使う想定) |
-| `--allow-private` | localhost/プライベートIPへのアクセスを許可(デフォルトは拒否) |
+| フラグ | デフォルト | 説明 |
+|---|---|---|
+| `--json` | off | 構造化JSON出力(stdoutにJSON、進捗ログはstderr) |
+| `--force-visible` | off | スクロール連動アニメで隠れた要素を強制表示。**スクショが真っ白な時に使う**(AOS, wow.js 等対策) |
+| `--out <dir>` | `./sites/` | 出力先ディレクトリ。`SITESNAP_OUT` 環境変数でも指定可 |
+| `--limit <N>` | off | 最初の N 件のURLだけキャプチャ(`--exclude` 適用後の順序) |
+| `--exclude <regex>` | off | この正規表現にマッチするURLをスキップ(例: `'\?utm_'`) |
+| `--concurrency <N>` | 3 | 並列ワーカー数を上書き |
+| `--wait-ms <ms>` | off | スクリーンショット前に追加で待機 |
+| `--pre-scroll <full-page\|none>` | `full-page` | スクリーンショット前の自動スクロール設定 |
+| `--agent-task` | off | `doctor` 実行時に Codex / Claude Code / Webwright 向け調査ファイルを生成 |
+| `--min-interval <ms>` | 0 | 同一ホストへの最小間隔(ms)。サーバーに優しい運用に |
+| `--strict` | off | 1ページでも失敗したら非ゼロ終了(CI向け) |
+| `--allow-private` | off | localhost/プライベートIPへのアクセスを許可 |
 
 ```bash
 sitesnap list --json
 # → [{ "domain": "...", "pages": 45, ... }]
 
 sitesnap site https://example.com/sitemap.xml --force-visible --out ~/captures
+```
+
+## JSON 出力例
+
+単一ページをキャプチャした場合:
+
+```json
+{
+  "success": true,
+  "domain": "example.com",
+  "url": "https://example.com/about",
+  "desktop": true,
+  "mobile": true,
+  "errors": [],
+  "out_dir": "/abs/sites",
+  "run_dir": "/abs/sites/example.com/runs/latest"
+}
+```
+
+sitemapからサイト全体をキャプチャした場合:
+
+```json
+{
+  "success": true,
+  "domain": "example.com",
+  "source": "https://example.com/sitemap.xml",
+  "pages": 10,
+  "captured_pages": 9,
+  "errors": [{ "url": "https://example.com/missing", "mode": "desktop", "error": "..." }],
+  "out_dir": "/abs/sites",
+  "run_dir": "/abs/sites/example.com/runs/latest"
+}
+```
+
+エラー時:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_URL",
+    "message": "URLの形式が不正です",
+    "hint": "http:// または https:// のURLを指定してください",
+    "url": "example.com"
+  }
+}
 ```
 
 ### Optional: agent-assisted diagnosis
@@ -181,6 +231,18 @@ Codex CLI はプロジェクト直下の `AGENTS.md` を自動で読み込むの
 
 > このリポジトリ自体に手を入れる場合(コントリビューター向け)は、ルートの [AGENTS.md](./AGENTS.md) を参照してください。sitesnap のコードベースを AI エージェントで開発する際の指針が書いてあります。
 
+## 開発
+
+```bash
+git clone https://github.com/hayashiii-ghub/sitesnap.git
+cd sitesnap
+bun install
+bun test
+bun src/cli.ts list --json  # 直接実行
+bun run build               # dist/cli.js 生成
+bun run pack:smoke          # npm package の内容と install 後CLIを検証
+```
+
 ---
 
 ## 設定変更(ソースを編集する場合)
@@ -228,6 +290,7 @@ export function getStaticPaths() {
 - **スクショ画像はGit管理外推奨**。`meta.json` だけGit管理に乗せるのが基本(画像はサイズ大、生成物として扱う)
 - **ログイン必須サイト**は現状未対応(今後 Playwright の `storageState` で対応予定)
 - **JavaScriptを大量に使うSPA**は `networkidle` で待機してますが、撮り逃しがあれば `sitesnap retry <domain>` で再取得を
+- **AIエージェント連携時**: 必ず `--json` を付けてください(進捗ログは stderr、結果 JSON は stdout に分離)
 
 ---
 
@@ -242,3 +305,5 @@ MIT © 2026 Hayashi
 - [GitHubリポジトリ](https://github.com/hayashiii-ghub/sitesnap)
 - [Issues](https://github.com/hayashiii-ghub/sitesnap/issues)
 - [npm](https://www.npmjs.com/package/@hayashiii/sitesnap)
+- [AGENTS.md](./AGENTS.md) — AIエージェント向け仕様書
+- [CHANGELOG](./CHANGELOG.md)
