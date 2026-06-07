@@ -73,6 +73,36 @@ function parseNonNegativeInteger(value: string, flag: string): number {
   return n
 }
 
+const maxPositionalArgsBySubcommand: Record<string, number> = {
+  site: 1,
+  page: 1,
+  list: 0,
+  open: 1,
+  retry: 1,
+  doctor: 1,
+}
+
+const usageArgBySubcommand: Record<string, string> = {
+  site: " <sitemap-url>",
+  page: " <url>",
+  open: " <domain>",
+  retry: " <domain>",
+  doctor: " <run-dir>",
+}
+
+function validatePositionalArity(sub: string | undefined, args: string[]): void {
+  if (!sub) return
+  const maxArgs = maxPositionalArgsBySubcommand[sub]
+  if (maxArgs === undefined || args.length <= maxArgs) return
+
+  const extra = args.slice(maxArgs).join(" ")
+  const usageArg = usageArgBySubcommand[sub] || ""
+  throw invalidOption(
+    `${sub} コマンドの引数が多すぎます: ${extra}`,
+    `sitesnap ${sub}${usageArg} の形式で指定してください。`
+  )
+}
+
 export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): CliContext {
   const sub = argv[0]
   const json = argv.includes("--json")
@@ -133,6 +163,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
     args.push(a)
   }
   outDir = path.resolve(outDir)
+  validatePositionalArity(sub, args)
 
   return {
     sub,

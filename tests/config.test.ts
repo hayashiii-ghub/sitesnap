@@ -31,3 +31,12 @@ test("parseCliArgs: rejects invalid numeric flags before command execution", () 
     /INVALID_OPTION|--wait-ms/
   );
 });
+
+test("parseCliArgs: rejects extra positional arguments per subcommand", () => {
+  expect(() =>
+    parseCliArgs(["page", "https://example.com/about", "extra"])
+  ).toThrow(/INVALID_OPTION|引数が多すぎます/);
+  expect(() =>
+    parseCliArgs(["list", "extra"])
+  ).toThrow(/INVALID_OPTION|引数が多すぎます/);
+});
