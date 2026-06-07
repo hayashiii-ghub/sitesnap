@@ -66,6 +66,21 @@ test("CLI: invalid numeric option fails as structured JSON before command execut
   expect(parsed.error.hint).toContain("--limit");
 });
 
+test("CLI: extra positional argument fails as structured JSON before command execution", async () => {
+  const { code, stdout, stderr } = await run([
+    "page",
+    "https://example.com/about",
+    "extra",
+    "--json",
+  ]);
+  expect(code).toBe(1);
+  expect(stderr).toBe("");
+  const parsed = JSON.parse(stdout);
+  expect(parsed.success).toBe(false);
+  expect(parsed.error.code).toBe("INVALID_OPTION");
+  expect(parsed.error.message).toContain("引数が多すぎます");
+});
+
 test("CLI: --version prints version and exits 0", async () => {
   const { stdout, code } = await run(["--version"]);
   expect(code).toBe(0);

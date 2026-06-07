@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Aligned README flag tables with the `@hayashiii/pdfmint` format by documenting defaults and descriptions.
 - Refactored command handlers to return structured command results instead of writing directly to process state.
 - Refactored the capture pipeline into target resolution, directory preparation, worker execution, and injectable progress logging.
+- Aligned subcommand argument validation with `@hayashiii/pdfmint` by rejecting extra positional arguments before command execution.
 
 ## [0.4.0] - 2026-05-27
 
