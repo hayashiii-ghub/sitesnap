@@ -24,6 +24,7 @@ export interface CaptureOptions {
   dryRun?: boolean
   force?: boolean
   rateLimiter?: HostRateLimiter
+  onLog?: (message: string) => void
 }
 
 export interface CaptureResult {
@@ -44,6 +45,12 @@ export interface CaptureSummary {
   results: CaptureResult[]
 }
 
+export interface CaptureTarget {
+  domain: string
+  siteDir: string | null
+  otherHosts: string[]
+}
+
 export function slugify(url: string): string {
   const u = new URL(url)
   let p = u.pathname.replace(/^\/+|\/+$/g, "")
@@ -60,10 +67,53 @@ export function domainOf(url: string): string {
   return new URL(url).hostname
 }
 
+export function formatCrossHostWarning(domain: string, otherHosts: string[]): string | null {
+  if (otherHosts.length === 0) return null
+  const preview = otherHosts.slice(0, 3).join(", ")
+  const suffix = otherHosts.length > 3 ? ` (+${otherHosts.length - 3})` : ""
+  return (
+    `警告: URLが複数のホストにまたがっています。すべて ${domain}/ に保存します。` +
+    `他のホスト: ${preview}${suffix}`
+  )
+}
+
+export function resolveCaptureTarget(
+  urls: string[],
+  opts: Pick<CaptureOptions, "outDir" | "allowPrivate" | "dryRun"> = {}
+): CaptureTarget {
+  if (urls.length === 0) {
+    throw new SiteSnapError(
+      "INVALID_URL",
+      "URLが指定されていません",
+      "少なくとも1つの URL を指定してください。",
+      {}
+    )
+  }
+
+  const allowPrivate = opts.allowPrivate || false
+  for (const url of urls) {
+    assertPublicUrl(url, { allowPrivate })
+  }
+
+  const domain = domainOf(urls[0]!)
+  const otherHosts = [...new Set(urls.map(domainOf).filter((h) => h !== domain))]
+  const siteDir = opts.dryRun ? null : path.join(opts.outDir || DEFAULTS.sitesDir, domain)
+  return { domain, siteDir, otherHosts }
+}
+
 function viewportFor(mode: CaptureMode) {
   const v = DEFAULTS.viewports[mode]
   if (typeof v === "string") return devices[v]
   return v
+}
+
+function createCaptureLogger(opts: CaptureOptions): (message: string) => void {
+  return opts.onLog ?? ((message: string) => console.error(message))
+}
+
+async function prepareCaptureDirs(siteDir: string): Promise<void> {
+  await mkdir(path.join(siteDir, "desktop"), { recursive: true })
+  await mkdir(path.join(siteDir, "mobile"), { recursive: true })
 }
 
 async function autoScroll(page: import("playwright").Page): Promise<void> {
@@ -161,41 +211,67 @@ async function captureOne(
   return { url, mode, file, slug, title, httpStatus, durationMs: Date.now() - startedAt }
 }
 
-export async function captureUrls(urls: string[], opts: CaptureOptions = {}): Promise<CaptureSummary> {
-  if (urls.length === 0) {
-    throw new SiteSnapError(
-      "INVALID_URL",
-      "URLが指定されていません",
-      "少なくとも1つの URL を指定してください。",
-      {}
-    )
-  }
-
-  const allowPrivate = opts.allowPrivate || false
-  for (const url of urls) {
-    assertPublicUrl(url, { allowPrivate })
-  }
-
-  const domain = domainOf(urls[0]!)
-  const otherHosts = new Set(urls.map(domainOf).filter((h) => h !== domain))
-  if (otherHosts.size > 0) {
-    console.error(
-      `警告: URLが複数のホストにまたがっています。すべて ${domain}/ に保存します。` +
-        `他のホスト: ${[...otherHosts].slice(0, 3).join(", ")}${otherHosts.size > 3 ? ` (+${otherHosts.size - 3})` : ""}`
-    )
-  }
-
-  if (opts.dryRun) {
-    return { domain, siteDir: null, results: [] }
-  }
-
-  const baseDir = opts.outDir || DEFAULTS.sitesDir
-  const siteDir = path.join(baseDir, domain)
-  await mkdir(path.join(siteDir, "desktop"), { recursive: true })
-  await mkdir(path.join(siteDir, "mobile"), { recursive: true })
-
+async function runCaptureMode(
+  browser: Browser,
+  urls: string[],
+  mode: CaptureMode,
+  siteDir: string,
+  opts: CaptureOptions,
+  log: (message: string) => void
+): Promise<CaptureResult[]> {
   const concurrency = opts.concurrency || DEFAULTS.concurrency
   const rateLimiter = opts.rateLimiter
+  const results: CaptureResult[] = []
+
+  let i = 0
+  const worker = async () => {
+    while (i < urls.length) {
+      const my = i++
+      const url = urls[my]!
+      try {
+        if (rateLimiter) await rateLimiter.wait(domainOf(url))
+        const r = await captureOne(browser, url, mode, siteDir, opts)
+        results.push(r)
+        log(`[${mode}] ${my + 1}/${urls.length} ${r.skipped ? "skip" : "ok  "} ${url}`)
+      } catch (e) {
+        const message = (e as Error).message
+        log(`[${mode}] ${my + 1}/${urls.length} ERR  ${url} :: ${message}`)
+        results.push({ url, mode, error: message, slug: slugify(url) })
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, worker))
+  return results
+}
+
+async function runCaptureWorkers(
+  browser: Browser,
+  urls: string[],
+  siteDir: string,
+  opts: CaptureOptions,
+  log: (message: string) => void
+): Promise<CaptureResult[]> {
+  const results: CaptureResult[] = []
+  for (const mode of ["desktop", "mobile"] as const) {
+    results.push(...(await runCaptureMode(browser, urls, mode, siteDir, opts, log)))
+  }
+  return results
+}
+
+export async function captureUrls(urls: string[], opts: CaptureOptions = {}): Promise<CaptureSummary> {
+  const target = resolveCaptureTarget(urls, opts)
+  const log = createCaptureLogger(opts)
+
+  const warning = formatCrossHostWarning(target.domain, target.otherHosts)
+  if (warning) log(warning)
+
+  if (opts.dryRun) {
+    return { domain: target.domain, siteDir: null, results: [] }
+  }
+
+  const siteDir = target.siteDir!
+  await prepareCaptureDirs(siteDir)
 
   let browser: Browser
   try {
@@ -208,38 +284,19 @@ export async function captureUrls(urls: string[], opts: CaptureOptions = {}): Pr
       {}
     )
   }
-  const results: CaptureResult[] = []
+  let results: CaptureResult[] = []
 
   try {
-    for (const mode of ["desktop", "mobile"] as const) {
-      let i = 0
-      const worker = async () => {
-        while (i < urls.length) {
-          const my = i++
-          const url = urls[my]!
-          try {
-            if (rateLimiter) await rateLimiter.wait(domainOf(url))
-            const r = await captureOne(browser, url, mode, siteDir, opts)
-            results.push(r)
-            console.error(`[${mode}] ${my + 1}/${urls.length} ${r.skipped ? "skip" : "ok  "} ${url}`)
-          } catch (e) {
-            const message = (e as Error).message
-            console.error(`[${mode}] ${my + 1}/${urls.length} ERR  ${url} :: ${message}`)
-            results.push({ url, mode, error: message, slug: slugify(url) })
-          }
-        }
-      }
-      await Promise.all(Array.from({ length: concurrency }, worker))
-    }
+    results = await runCaptureWorkers(browser, urls, siteDir, opts, log)
   } finally {
     await browser.close()
   }
 
   if (!opts.forceVisible && results.length > 0) {
-    console.error(
+    log(
       `\nヒント: スクリーンショットが真っ白だった場合は --force-visible を付けて再実行してください (AOS, wow.js 等のスクロール表示ライブラリ対策)。`
     )
   }
 
-  return { domain, siteDir, results }
+  return { domain: target.domain, siteDir, results }
 }

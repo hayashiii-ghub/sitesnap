@@ -1,5 +1,11 @@
 import { test, expect } from "bun:test";
-import { slugify, domainOf, captureUrls } from "../src/capture.ts";
+import {
+  slugify,
+  domainOf,
+  captureUrls,
+  formatCrossHostWarning,
+  resolveCaptureTarget,
+} from "../src/capture.ts";
 
 test("slugify: simple path", () => {
   expect(slugify("https://example.com/about")).toBe("about");
@@ -43,19 +49,37 @@ test("captureUrls: rejects private URL by default", async () => {
   );
 });
 
-test("captureUrls: warns when URLs span multiple hostnames", async () => {
+test("resolveCaptureTarget: validates URLs and builds target paths", () => {
+  expect(
+    resolveCaptureTarget(
+      ["https://example.com/a", "https://other.com/b", "https://third.com/c"],
+      { outDir: "/tmp/sitesnap-out" }
+    )
+  ).toEqual({
+    domain: "example.com",
+    siteDir: "/tmp/sitesnap-out/example.com",
+    otherHosts: ["other.com", "third.com"],
+  });
+});
+
+test("resolveCaptureTarget: dry run has no output directory", () => {
+  expect(resolveCaptureTarget(["https://example.com/a"], { dryRun: true }).siteDir).toBeNull();
+});
+
+test("formatCrossHostWarning: summarizes extra hostnames", () => {
+  expect(
+    formatCrossHostWarning("example.com", ["a.example", "b.example", "c.example", "d.example"])
+  ).toContain("a.example, b.example, c.example (+1)");
+});
+
+test("captureUrls: reports cross-host warning through onLog", async () => {
   const warnings: string[] = [];
-  const originalErr = console.error;
-  console.error = (msg: unknown) => {
-    warnings.push(String(msg));
-  };
-  try {
-    await captureUrls(
-      ["https://example.com/a", "https://other.com/b"],
-      { dryRun: true }
-    );
-  } finally {
-    console.error = originalErr;
-  }
+  await captureUrls(
+    ["https://example.com/a", "https://other.com/b"],
+    {
+      dryRun: true,
+      onLog: (msg) => warnings.push(msg),
+    }
+  );
   expect(warnings.some((w) => /複数のホスト/.test(w))).toBeTruthy();
 });

@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded `AGENTS.md` and `skills/sitesnap/SKILL.md` with clearer AI-agent invocation, retry, diagnosis, and recovery guidance.
 - Aligned README flag tables with the `@hayashiii/pdfmint` format by documenting defaults and descriptions.
 - Refactored command handlers to return structured command results instead of writing directly to process state.
+- Refactored the capture pipeline into target resolution, directory preparation, worker execution, and injectable progress logging.
 
 ## [0.4.0] - 2026-05-27
 
