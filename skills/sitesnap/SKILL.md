@@ -13,6 +13,7 @@ description: Webサイトのスクリーンショット（デスクトップ + �
 - キャプチャ失敗の診断や再取得方針を出したいとき
 - **開発中のサイトの検証**（特定ビューポート・特定要素・アニメ完了後の状態を撮りたいとき → `shot`）
 - **レイアウトの数値検証**（computed style・寸法・はみ出し量を確認したいとき → `inspect`。スクショ目視より確実）
+- **ページの健全性ゲート**（横はみ出し・consoleエラー・失敗リクエスト・a11y をまとめて合否判定 → `check`）
 
 ## How to invoke
 
@@ -59,6 +60,15 @@ sitesnap inspect http://localhost:3000/ --selector ".cta" --allow-private --json
 sitesnap inspect http://localhost:3000/ --selector "h1" --props "letter-spacing" --allow-private --json
 ```
 マッチ 0 件はエラーではなく `count: 0`（不在の検証にも使える）。`overflow.x > 0` なら内容がはみ出している。
+
+### ページの健全性チェック（`check`）
+```bash
+# 横はみ出し / consoleエラー / 失敗リクエスト / axe-core a11y の合否レポート
+sitesnap check http://localhost:3000/ --allow-private --json
+# CI ゲート（不合格で非ゼロ終了）
+sitesnap check http://localhost:3000/ --allow-private --strict --json
+```
+「ページ完成」を宣言する前に流す。`pass: true` は 4 チェック全部合格のときだけ。
 
 ### キャプチャ済み一覧
 ```bash

@@ -67,6 +67,7 @@ sitesnap site https://example.com/sitemap.xml --json
 | `sitesnap page <url>` | 単一ページのみキャプチャ |
 | `sitesnap shot <url>` | 開発検証用の単発スクリーンショット(ビューポート・要素・フルページ) |
 | `sitesnap inspect <url>` | 要素の computed style・寸法・テキスト・overflow 量を JSON で取得 |
+| `sitesnap check <url>` | 横はみ出し・consoleエラー・失敗リクエスト・axe-core a11y の合否レポート |
 | `sitesnap list` | キャプチャ済みサイト一覧 |
 | `sitesnap open <domain>` | Finderでサイトのフォルダを開く |
 | `sitesnap retry <domain>` | 失敗したページのみ再取得 |
@@ -90,7 +91,7 @@ sitesnap site https://example.com/sitemap.xml --json
 | `--strict` | off | 1ページでも失敗したら非ゼロ終了(CI向け) |
 | `--allow-private` | off | localhost/プライベートIPへのアクセスを許可 |
 
-### shot / inspect 用フラグ
+### shot / inspect / check 用フラグ
 
 | フラグ | デフォルト | 説明 |
 |---|---|---|
@@ -167,6 +168,26 @@ sitesnap site https://example.com/sitemap.xml --force-visible --out ~/captures
   "title": "Example",
   "http_status": 200,
   "duration_ms": 980
+}
+```
+
+`check` の場合（`--strict` を付けると不合格時に非ゼロ終了、CI向け）:
+
+```json
+{
+  "success": true,
+  "url": "http://localhost:3000/",
+  "viewport": { "width": 1440, "height": 900 },
+  "pass": false,
+  "checks": {
+    "overflow": { "pass": false, "amount": 560, "offenders": [{ "element": "div.hero", "width": 2000, "right": 2000 }] },
+    "console_errors": { "pass": true, "messages": [] },
+    "failed_requests": { "pass": false, "requests": [{ "url": "http://localhost:3000/missing.png", "status": 404, "error": null }] },
+    "a11y": { "pass": false, "violations": [{ "id": "image-alt", "impact": "critical", "nodes": 1, "targets": ["img"] }] }
+  },
+  "title": "Example",
+  "http_status": 200,
+  "duration_ms": 2100
 }
 ```
 

@@ -32,12 +32,14 @@ test(
       });
 
       const desktop = results.find((r) => r.mode === "desktop");
+      expect(desktop?.error).toBeUndefined();
       expect(desktop?.file).toBeTruthy();
       expect(pngWidth(await readFile(desktop!.file!))).toBe(
         DEFAULTS.viewports.desktop.width
       );
 
       const mobile = results.find((r) => r.mode === "mobile");
+      expect(mobile?.error).toBeUndefined();
       expect(mobile?.file).toBeTruthy();
       // iPhone 13: viewport 390px × deviceScaleFactor 3
       expect(pngWidth(await readFile(mobile!.file!))).toBe(390 * 3);

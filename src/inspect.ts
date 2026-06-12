@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-import { FREEZE_ANIMATIONS_CSS, launchChromium } from "./capture.ts"
+import { closeChromium, FREEZE_ANIMATIONS_CSS, launchChromium } from "./capture.ts"
 import { DEFAULTS } from "./config.ts"
 import { SiteSnapError } from "./errors.ts"
 import { assertPublicUrl } from "./url-guard.ts"
@@ -133,10 +133,7 @@ export async function inspectUrl(url: string, opts: InspectOptions = {}): Promis
       duration_ms: Date.now() - startedAt,
     }
   } finally {
-    if (opts.browser) {
-      await ctx?.close()
-    } else {
-      await browser.close()
-    }
+    await ctx?.close().catch(() => {})
+    if (!opts.browser) await closeChromium(browser)
   }
 }

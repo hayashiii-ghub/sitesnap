@@ -67,6 +67,7 @@ sitesnap site https://example.com/sitemap.xml --json
 | `sitesnap page <url>` | Capture a single page |
 | `sitesnap shot <url>` | One-off dev-loop screenshot (viewport, element, or full page) |
 | `sitesnap inspect <url>` | Computed style, box, text, and overflow of matching elements as JSON |
+| `sitesnap check <url>` | Pass/fail report: horizontal overflow, console errors, failed requests, axe-core a11y |
 | `sitesnap list` | List captured sites |
 | `sitesnap open <domain>` | Open the site's folder in Finder |
 | `sitesnap retry <domain>` | Re-capture pages that failed previously |
@@ -90,7 +91,7 @@ sitesnap site https://example.com/sitemap.xml --json
 | `--strict` | off | Exit with non-zero status if any page failed to capture |
 | `--allow-private` | off | Allow loopback / RFC1918 / link-local hosts |
 
-### shot / inspect flags
+### shot / inspect / check flags
 
 | Flag | Default | Description |
 |---|---|---|
@@ -167,6 +168,26 @@ Single-page capture:
   "title": "Example",
   "http_status": 200,
   "duration_ms": 980
+}
+```
+
+`check` (add `--strict` for a non-zero exit on failure — CI friendly):
+
+```json
+{
+  "success": true,
+  "url": "http://localhost:3000/",
+  "viewport": { "width": 1440, "height": 900 },
+  "pass": false,
+  "checks": {
+    "overflow": { "pass": false, "amount": 560, "offenders": [{ "element": "div.hero", "width": 2000, "right": 2000 }] },
+    "console_errors": { "pass": true, "messages": [] },
+    "failed_requests": { "pass": false, "requests": [{ "url": "http://localhost:3000/missing.png", "status": 404, "error": null }] },
+    "a11y": { "pass": false, "violations": [{ "id": "image-alt", "impact": "critical", "nodes": 1, "targets": ["img"] }] }
+  },
+  "title": "Example",
+  "http_status": 200,
+  "duration_ms": 2100
 }
 ```
 

@@ -12,6 +12,7 @@
 - A captured run failed and the user wants retry guidance or an agent handoff task
 - You are iterating on a site under development and need a screenshot of a specific viewport, element, or post-animation state (`shot`)
 - You need to verify layout numerically — computed styles, bounding boxes, text, overflow amounts (`inspect`)
+- You want a one-shot health gate before declaring a page done — overflow, console errors, failed requests, a11y (`check`)
 
 ## Quick Reference
 
@@ -20,6 +21,7 @@ sitesnap site <sitemap-url>           # Capture all pages from sitemap
 sitesnap page <url>                   # Capture single page
 sitesnap shot <url>                   # One-off dev-loop screenshot
 sitesnap inspect <url>                # Element style/box/text/overflow as JSON
+sitesnap check <url>                  # Pass/fail: overflow, console errors, failed requests, a11y
 sitesnap list                         # List captured sites
 sitesnap open <domain>                # Open site folder in Finder
 sitesnap retry <domain>               # Retry failed pages
@@ -82,6 +84,22 @@ sitesnap inspect https://example.com/ --selector "img" --limit 20 --json   # up 
 - `--selector` is required. Zero matches is NOT an error: you get `count: 0` and an empty `elements` array (useful for asserting absence).
 - Each element reports `box` (getBoundingClientRect), `style` (a default set of layout/typography properties plus any `--props`), `text` (first 200 chars), and `overflow` (`scrollWidth - clientWidth` / `scrollHeight - clientHeight`, useful for clipped-content checks).
 - `--vp` / `--device` / `--settle` work the same as for `shot`, so you can measure responsive states.
+
+## Page health gate (`check`)
+
+Run `check` before declaring a page done. It reports four pass/fail checks in one navigation:
+
+```bash
+sitesnap check http://localhost:3000/ --allow-private --json            # report only (exit 0)
+sitesnap check http://localhost:3000/ --allow-private --strict --json   # CI gate (exit 1 on failure)
+sitesnap check https://example.com/ --vp 390x844 --json                 # mobile-width overflow check
+```
+
+- `overflow`: `documentElement.scrollWidth - clientWidth` plus up to 10 offending elements (tag + id/class, width, right edge).
+- `console_errors`: console `error` messages and uncaught page errors collected during load.
+- `failed_requests`: network failures and HTTP >= 400 responses.
+- `a11y`: axe-core violations with id, impact, node count, and first selector targets.
+- Top-level `pass` is true only when all four pass. Default exit code is 0 even on failure (report mode); `--strict` exits non-zero.
 
 ## Diagnosis and agent handoff
 

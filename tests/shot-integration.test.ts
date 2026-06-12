@@ -1,5 +1,4 @@
-import { test, expect, beforeAll, afterAll } from "bun:test";
-import { chromium, type Browser } from "playwright";
+import { test, expect } from "bun:test";
 import { existsSync } from "node:fs";
 import { readFile, rm, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -14,16 +13,6 @@ const PAGE_HTML = `<!doctype html><html><head><meta name="viewport" content="wid
   <div style="height:2900px">tall content</div>
   <footer style="display:block;width:600px;height:80px">footer content</footer>
 </body></html>`;
-
-// Bun では同一プロセス内で chromium.launch を繰り返すと CDP パイプが
-// 無応答になることがあるため、ファイル内で 1 つの browser を共有する
-let browser: Browser;
-beforeAll(async () => {
-  browser = await chromium.launch();
-});
-afterAll(async () => {
-  await browser.close();
-});
 
 function pngSize(buf: Buffer): { width: number; height: number } {
   return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
@@ -43,7 +32,7 @@ test(
     const outDir = await mkdtemp(path.join(tmpdir(), "sitesnap-shot-"));
     try {
       const url = `http://127.0.0.1:${server.port}/`;
-      const r = await captureShot(url, { outDir, allowPrivate: true, browser });
+      const r = await captureShot(url, { outDir, allowPrivate: true });
       expect(path.isAbsolute(r.file)).toBeTrue();
       expect(existsSync(r.file)).toBeTrue();
       // ポート付き localhost は host_port フォルダに分離される
@@ -64,7 +53,7 @@ test(
     const outDir = await mkdtemp(path.join(tmpdir(), "sitesnap-shot-"));
     try {
       const url = `http://127.0.0.1:${server.port}/`;
-      const r = await captureShot(url, { outDir, allowPrivate: true, browser, selector: "footer" });
+      const r = await captureShot(url, { outDir, allowPrivate: true, selector: "footer" });
       const size = pngSize(await readFile(r.file));
       expect(size).toEqual({ width: 600, height: 80 });
     } finally {
@@ -82,7 +71,7 @@ test(
     const outDir = await mkdtemp(path.join(tmpdir(), "sitesnap-shot-"));
     try {
       const url = `http://127.0.0.1:${server.port}/`;
-      const r = await captureShot(url, { outDir, allowPrivate: true, browser, full: true });
+      const r = await captureShot(url, { outDir, allowPrivate: true, full: true });
       const size = pngSize(await readFile(r.file));
       expect(size.width).toBe(1440);
       expect(size.height).toBeGreaterThan(2000);
@@ -102,7 +91,7 @@ test(
     try {
       const url = `http://127.0.0.1:${server.port}/`;
       await expect(
-        captureShot(url, { outDir, allowPrivate: true, browser, selector: "#no-such-element" })
+        captureShot(url, { outDir, allowPrivate: true, selector: "#no-such-element" })
       ).rejects.toThrow(/セレクタに一致する要素がありません/);
     } finally {
       server.stop();

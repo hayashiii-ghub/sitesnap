@@ -119,7 +119,16 @@ async function prepareCaptureDirs(siteDir: string): Promise<void> {
   await mkdir(path.join(siteDir, "mobile"), { recursive: true })
 }
 
+// テスト専用シーム: bun test の preload が共有 browser をセットする。
+// Bun では同一プロセス内で chromium.launch を繰り返すと CDP パイプが
+// 無応答・切断になることがあるため、テストでは 1 プロセス 1 browser に抑える。
+// 本番 (Node CLI) では未設定のまま = 常に新規 launch。
+declare global {
+  var __sitesnapSharedBrowser: Browser | undefined
+}
+
 export async function launchChromium(): Promise<Browser> {
+  if (globalThis.__sitesnapSharedBrowser) return globalThis.__sitesnapSharedBrowser
   try {
     return await chromium.launch()
   } catch (err) {
@@ -130,6 +139,12 @@ export async function launchChromium(): Promise<Browser> {
       {}
     )
   }
+}
+
+// launchChromium で得た browser を、共有 browser でない場合のみ close する
+export async function closeChromium(browser: Browser): Promise<void> {
+  if (browser === globalThis.__sitesnapSharedBrowser) return
+  await browser.close()
 }
 
 export async function autoScroll(page: import("playwright").Page): Promise<void> {
@@ -295,7 +310,7 @@ export async function captureUrls(urls: string[], opts: CaptureOptions = {}): Pr
   try {
     results = await runCaptureWorkers(browser, urls, siteDir, opts, log)
   } finally {
-    await browser.close()
+    await closeChromium(browser)
   }
 
   if (!opts.forceVisible && results.length > 0) {

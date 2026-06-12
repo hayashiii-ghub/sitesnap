@@ -1,16 +1,5 @@
-import { test, expect, beforeAll, afterAll } from "bun:test";
-import { chromium, type Browser } from "playwright";
+import { test, expect } from "bun:test";
 import { inspectUrl } from "../src/inspect.ts";
-
-// Bun では同一プロセス内で chromium.launch を繰り返すと CDP パイプが
-// 無応答になることがあるため、ファイル内で 1 つの browser を共有する
-let browser: Browser;
-beforeAll(async () => {
-  browser = await chromium.launch();
-});
-afterAll(async () => {
-  await browser.close();
-});
 
 const PAGE_HTML = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>inspect-test</title>
 <style>
@@ -36,7 +25,7 @@ test(
     const server = serve();
     try {
       const url = `http://127.0.0.1:${server.port}/`;
-      const r = await inspectUrl(url, { selector: "footer", allowPrivate: true, browser });
+      const r = await inspectUrl(url, { selector: "footer", allowPrivate: true });
       expect(r.count).toBe(1);
       const el = r.elements[0]!;
       expect(el.box.width).toBe(600);
@@ -59,7 +48,7 @@ test(
     const server = serve();
     try {
       const url = `http://127.0.0.1:${server.port}/`;
-      const r = await inspectUrl(url, { selector: ".clipped", allowPrivate: true, browser });
+      const r = await inspectUrl(url, { selector: ".clipped", allowPrivate: true });
       expect(r.count).toBe(1);
       expect(r.elements[0]!.overflow.x).toBeGreaterThan(0);
     } finally {
@@ -77,7 +66,7 @@ test(
       const url = `http://127.0.0.1:${server.port}/`;
       const r = await inspectUrl(url, {
         selector: "footer",
-        allowPrivate: true, browser,
+        allowPrivate: true,
         props: ["white-space", "text-align"],
       });
       expect(r.elements[0]!.style["white-space"]).toBe("normal");
@@ -95,7 +84,7 @@ test(
     const server = serve();
     try {
       const url = `http://127.0.0.1:${server.port}/`;
-      const r = await inspectUrl(url, { selector: "#nope", allowPrivate: true, browser });
+      const r = await inspectUrl(url, { selector: "#nope", allowPrivate: true });
       expect(r.count).toBe(0);
       expect(r.elements).toEqual([]);
     } finally {

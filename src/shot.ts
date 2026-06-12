@@ -4,6 +4,7 @@ import { mkdir } from "node:fs/promises"
 import path from "node:path"
 import {
   autoScroll,
+  closeChromium,
   FORCE_VISIBLE_CSS,
   FREEZE_ANIMATIONS_CSS,
   launchChromium,
@@ -197,10 +198,7 @@ export async function captureShot(url: string, opts: ShotOptions = {}): Promise<
       duration_ms: Date.now() - startedAt,
     }
   } finally {
-    if (opts.browser) {
-      await ctx?.close()
-    } else {
-      await browser.close()
-    }
+    await ctx?.close().catch(() => {})
+    if (!opts.browser) await closeChromium(browser)
   }
 }

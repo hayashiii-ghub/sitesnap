@@ -12,6 +12,7 @@ sitesnap — ウェブサイトのスクリーンショットを一括キャプ�
   sitesnap page <url>              1ページだけキャプチャ
   sitesnap shot <url>              開発検証用の単発スクリーンショット
   sitesnap inspect <url>           要素の computed style / 寸法 / overflow を JSON で取得
+  sitesnap check <url>             横はみ出し/consoleエラー/失敗リクエスト/a11y の合否レポート
   sitesnap list                    キャプチャ済みサイト一覧
   sitesnap open <domain>           Finderでサイトのフォルダを開く
   sitesnap retry <domain>          失敗したページのみ再取得
@@ -35,7 +36,7 @@ sitesnap — ウェブサイトのスクリーンショットを一括キャプ�
   --strict                              1ページでも失敗したら非ゼロ終了（CI向け）
   --allow-private                       localhost/プライベートIPへのアクセスを許可
 
-shot / inspect 用フラグ:
+shot / inspect / check 用フラグ:
   --vp <WxH>                            ビューポートサイズ（デフォルト 1440x900）
   --device <name>                       Playwrightデバイス名（例: "iPhone 13"）
   --selector <css>                      対象要素のCSSセレクタ（inspectでは必須）
@@ -48,6 +49,7 @@ shot / inspect 用フラグ:
   sitesnap shot https://example.com/ --selector "footer" --json
   sitesnap shot https://example.com/ --device "iPhone 13" --settle 1500 --json
   sitesnap inspect https://example.com/ --selector ".cta" --props "letter-spacing" --json
+  sitesnap check http://localhost:3000/ --allow-private --strict --json
   sitesnap site https://example.com/sitemap.xml --limit 10
   sitesnap site https://example.com/sitemap.xml --exclude '\\?utm_'
   sitesnap site https://example.com/sitemap.xml --concurrency 5 --min-interval 250
@@ -103,6 +105,7 @@ const maxPositionalArgsBySubcommand: Record<string, number> = {
   page: 1,
   shot: 1,
   inspect: 1,
+  check: 1,
   list: 0,
   open: 1,
   retry: 1,
@@ -114,6 +117,7 @@ const usageArgBySubcommand: Record<string, string> = {
   page: " <url>",
   shot: " <url>",
   inspect: " <url>",
+  check: " <url>",
   open: " <domain>",
   retry: " <domain>",
   doctor: " <run-dir>",

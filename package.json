@@ -50,6 +50,7 @@
     "access": "public"
   },
   "dependencies": {
+    "axe-core": "^4.12.1",
     "fast-xml-parser": "^5.7.2",
     "playwright": "^1.59.1"
   },

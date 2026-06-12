@@ -3,6 +3,7 @@ import { existsSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { captureUrls } from "./capture.ts"
+import { checkUrl } from "./check.ts"
 import type { CliContext } from "./cli-args.ts"
 import { analyzeRunDirectory, writeDoctorFiles, writeRunArtifacts } from "./doctor.ts"
 import { buildIndex, buildSiteMeta, type SiteMeta } from "./meta.ts"
@@ -204,6 +205,36 @@ async function cmdInspect(ctx: CliContext): Promise<CommandResult> {
   )
 }
 
+async function cmdCheck(ctx: CliContext): Promise<CommandResult> {
+  const url = ctx.args[0]
+  if (!url) {
+    return fail("使い方: sitesnap check <url>")
+  }
+  const report = await checkUrl(url, {
+    vp: ctx.shotOptions.vp,
+    device: ctx.shotOptions.device,
+    settleMs: ctx.shotOptions.settleMs,
+    allowPrivate: ctx.captureOptions.allowPrivate,
+  })
+  const result = out(
+    ctx,
+    { ...report },
+    (r) => {
+      const checks = r.checks as typeof report.checks
+      const mark = (pass: boolean) => (pass ? "ok " : "NG ")
+      const lines = [
+        `${report.pass ? "PASS" : "FAIL"}: ${r.url}`,
+        `  ${mark(checks.overflow.pass)}横はみ出し${checks.overflow.pass ? "" : ` (${checks.overflow.amount}px, ${checks.overflow.offenders.length} 要素)`}`,
+        `  ${mark(checks.console_errors.pass)}consoleエラー${checks.console_errors.pass ? "" : ` (${checks.console_errors.messages.length} 件)`}`,
+        `  ${mark(checks.failed_requests.pass)}失敗リクエスト${checks.failed_requests.pass ? "" : ` (${checks.failed_requests.requests.length} 件)`}`,
+        `  ${mark(checks.a11y.pass)}アクセシビリティ${checks.a11y.pass ? "" : ` (${checks.a11y.violations.length} violations)`}`,
+      ]
+      return lines.join("\n")
+    }
+  )
+  return withExitCode(result, ctx.strict && !report.pass ? 1 : 0)
+}
+
 async function cmdList(ctx: CliContext): Promise<CommandResult> {
   const sites = await buildIndex(ctx.outDir)
   if (ctx.json) {
@@ -335,6 +366,7 @@ export function buildCommands(): Record<string, CommandHandler> {
     page: cmdPage,
     shot: cmdShot,
     inspect: cmdInspect,
+    check: cmdCheck,
     list: cmdList,
     open: cmdOpen,
     retry: cmdRetry,
