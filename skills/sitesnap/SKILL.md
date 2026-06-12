@@ -12,6 +12,7 @@ description: Webサイトのスクリーンショット（デスクトップ + �
 - sitemap.xml から全ページを一括キャプチャしたいとき
 - キャプチャ失敗の診断や再取得方針を出したいとき
 - **開発中のサイトの検証**（特定ビューポート・特定要素・アニメ完了後の状態を撮りたいとき → `shot`）
+- **レイアウトの数値検証**（computed style・寸法・はみ出し量を確認したいとき → `inspect`。スクショ目視より確実）
 
 ## How to invoke
 
@@ -49,6 +50,15 @@ sitesnap shot https://example.com/ --device "iPhone 13" --json
 sitesnap shot https://example.com/ --full --json
 ```
 JSON の `file` が PNG の絶対パス。meta.json は更新されず `sites/<host>/shots/` に上書き保存。
+
+### 要素の数値検証（`inspect`）
+```bash
+# computed style・boundingBox・テキスト・はみ出し量を JSON で取得
+sitesnap inspect http://localhost:3000/ --selector ".cta" --allow-private --json
+# 追加プロパティ指定
+sitesnap inspect http://localhost:3000/ --selector "h1" --props "letter-spacing" --allow-private --json
+```
+マッチ 0 件はエラーではなく `count: 0`（不在の検証にも使える）。`overflow.x > 0` なら内容がはみ出している。
 
 ### キャプチャ済み一覧
 ```bash

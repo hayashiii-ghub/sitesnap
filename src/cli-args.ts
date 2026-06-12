@@ -11,6 +11,7 @@ sitesnap — ウェブサイトのスクリーンショットを一括キャプ�
   sitesnap site <sitemap-url>     sitemapから全ページをキャプチャ
   sitesnap page <url>              1ページだけキャプチャ
   sitesnap shot <url>              開発検証用の単発スクリーンショット
+  sitesnap inspect <url>           要素の computed style / 寸法 / overflow を JSON で取得
   sitesnap list                    キャプチャ済みサイト一覧
   sitesnap open <domain>           Finderでサイトのフォルダを開く
   sitesnap retry <domain>          失敗したページのみ再取得
@@ -34,17 +35,19 @@ sitesnap — ウェブサイトのスクリーンショットを一括キャプ�
   --strict                              1ページでも失敗したら非ゼロ終了（CI向け）
   --allow-private                       localhost/プライベートIPへのアクセスを許可
 
-shot 専用フラグ:
+shot / inspect 用フラグ:
   --vp <WxH>                            ビューポートサイズ（デフォルト 1440x900）
   --device <name>                       Playwrightデバイス名（例: "iPhone 13"）
-  --selector <css>                      指定要素だけ撮影
-  --settle <ms>                         アニメ凍結せず指定ms待ってから撮影
-  --full                                フルページ撮影（デフォルトはビューポートのみ）
+  --selector <css>                      対象要素のCSSセレクタ（inspectでは必須）
+  --settle <ms>                         アニメ凍結せず指定ms待ってから実行
+  --full                                フルページ撮影（shotのみ。デフォルトはビューポートのみ）
+  --props <p1,p2>                       inspectで追加取得するCSSプロパティ（カンマ区切り）
 
 使用例:
   sitesnap shot http://localhost:3000/about --allow-private --json
   sitesnap shot https://example.com/ --selector "footer" --json
   sitesnap shot https://example.com/ --device "iPhone 13" --settle 1500 --json
+  sitesnap inspect https://example.com/ --selector ".cta" --props "letter-spacing" --json
   sitesnap site https://example.com/sitemap.xml --limit 10
   sitesnap site https://example.com/sitemap.xml --exclude '\\?utm_'
   sitesnap site https://example.com/sitemap.xml --concurrency 5 --min-interval 250
@@ -58,6 +61,7 @@ export interface ShotCliOptions {
   selector: string | null
   settleMs: number | null
   full: boolean
+  props: string[] | null
 }
 
 export interface CliContext {
@@ -98,6 +102,7 @@ const maxPositionalArgsBySubcommand: Record<string, number> = {
   site: 1,
   page: 1,
   shot: 1,
+  inspect: 1,
   list: 0,
   open: 1,
   retry: 1,
@@ -108,6 +113,7 @@ const usageArgBySubcommand: Record<string, string> = {
   site: " <sitemap-url>",
   page: " <url>",
   shot: " <url>",
+  inspect: " <url>",
   open: " <domain>",
   retry: " <domain>",
   doctor: " <run-dir>",
@@ -146,6 +152,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
   let device: string | null = null
   let selector: string | null = null
   let settleMs: number | null = null
+  let props: string[] | null = null
 
   const flagSet = new Set([
     "--json",
@@ -167,6 +174,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
     "--device",
     "--selector",
     "--settle",
+    "--props",
   ])
   const args: string[] = []
   for (let i = 1; i < argv.length; i++) {
@@ -197,6 +205,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
       else if (a === "--device") device = v
       else if (a === "--selector") selector = v
       else if (a === "--settle") settleMs = parseNonNegativeInteger(v, a)
+      else if (a === "--props") props = v.split(",").map((p) => p.trim()).filter(Boolean)
       continue
     }
     if (a.startsWith("-")) {
@@ -229,7 +238,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
       waitMs: waitMs ?? undefined,
       preScroll: preScroll ?? undefined,
     },
-    shotOptions: { vp, device, selector, settleMs, full },
+    shotOptions: { vp, device, selector, settleMs, full, props },
     limit,
     exclude,
     minInterval,

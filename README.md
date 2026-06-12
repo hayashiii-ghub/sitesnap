@@ -66,6 +66,7 @@ sitesnap site https://example.com/sitemap.xml --json
 | `sitesnap site <sitemap-url>` | sitemapから全URL展開 → 全ページキャプチャ |
 | `sitesnap page <url>` | 単一ページのみキャプチャ |
 | `sitesnap shot <url>` | 開発検証用の単発スクリーンショット(ビューポート・要素・フルページ) |
+| `sitesnap inspect <url>` | 要素の computed style・寸法・テキスト・overflow 量を JSON で取得 |
 | `sitesnap list` | キャプチャ済みサイト一覧 |
 | `sitesnap open <domain>` | Finderでサイトのフォルダを開く |
 | `sitesnap retry <domain>` | 失敗したページのみ再取得 |
@@ -89,15 +90,16 @@ sitesnap site https://example.com/sitemap.xml --json
 | `--strict` | off | 1ページでも失敗したら非ゼロ終了(CI向け) |
 | `--allow-private` | off | localhost/プライベートIPへのアクセスを許可 |
 
-### shot 専用フラグ
+### shot / inspect 用フラグ
 
 | フラグ | デフォルト | 説明 |
 |---|---|---|
 | `--vp <WxH>` | `1440x900` | ビューポートサイズ |
 | `--device <name>` | off | Playwrightデバイス名(例: `"iPhone 13"`)。`--vp` と排他 |
-| `--selector <css>` | off | 指定要素だけ撮影。`--full` と排他 |
-| `--settle <ms>` | off | アニメ凍結せず指定ms待ってから撮影(入場アニメ完了後の最終状態を撮る) |
-| `--full` | off | フルページ撮影(デフォルトはビューポートのみ) |
+| `--selector <css>` | off | 対象要素のCSSセレクタ(shotでは要素だけ撮影、inspectでは必須)。`--full` と排他 |
+| `--settle <ms>` | off | アニメ凍結せず指定ms待ってから実行(入場アニメ完了後の最終状態を見る) |
+| `--full` | off | フルページ撮影(shotのみ。デフォルトはビューポートのみ) |
+| `--props <p1,p2>` | off | inspectで追加取得するCSSプロパティ(カンマ区切り) |
 
 `shot` はアーカイブ用の `site`/`page` と違い、meta.json を更新せず `sites/<host>/shots/` に上書き保存します。localhost はポートごとにフォルダが分かれます(例: `localhost_3000/`)。
 
@@ -142,6 +144,29 @@ sitesnap site https://example.com/sitemap.xml --force-visible --out ~/captures
   "title": "Example",
   "http_status": 200,
   "duration_ms": 1234
+}
+```
+
+`inspect` の場合（スクショ目視より数値検証の方が確実な場面で使う）:
+
+```json
+{
+  "success": true,
+  "url": "http://localhost:3000/",
+  "selector": ".cta",
+  "viewport": { "width": 1440, "height": 900 },
+  "count": 1,
+  "elements": [
+    {
+      "box": { "x": 560, "y": 1200, "width": 320, "height": 56 },
+      "style": { "color": "rgb(255, 255, 255)", "font-size": "18px", "display": "flex" },
+      "text": "お問い合わせ",
+      "overflow": { "x": 0, "y": 0 }
+    }
+  ],
+  "title": "Example",
+  "http_status": 200,
+  "duration_ms": 980
 }
 ```
 

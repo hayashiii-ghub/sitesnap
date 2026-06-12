@@ -27,7 +27,7 @@ test(
         agentTask: false,
         outDir,
         captureOptions: { outDir, allowPrivate: true, preScroll: "none" },
-        shotOptions: { vp: null, device: null, selector: null, settleMs: null, full: false },
+        shotOptions: { vp: null, device: null, selector: null, settleMs: null, full: false, props: null },
         limit: null,
         exclude: null,
         minInterval: null,

@@ -66,6 +66,7 @@ sitesnap site https://example.com/sitemap.xml --json
 | `sitesnap site <sitemap-url>` | Expand sitemap → capture every URL |
 | `sitesnap page <url>` | Capture a single page |
 | `sitesnap shot <url>` | One-off dev-loop screenshot (viewport, element, or full page) |
+| `sitesnap inspect <url>` | Computed style, box, text, and overflow of matching elements as JSON |
 | `sitesnap list` | List captured sites |
 | `sitesnap open <domain>` | Open the site's folder in Finder |
 | `sitesnap retry <domain>` | Re-capture pages that failed previously |
@@ -89,15 +90,16 @@ sitesnap site https://example.com/sitemap.xml --json
 | `--strict` | off | Exit with non-zero status if any page failed to capture |
 | `--allow-private` | off | Allow loopback / RFC1918 / link-local hosts |
 
-### shot-only flags
+### shot / inspect flags
 
 | Flag | Default | Description |
 |---|---|---|
 | `--vp <WxH>` | `1440x900` | Viewport size |
 | `--device <name>` | off | Playwright device name (e.g. `"iPhone 13"`). Mutually exclusive with `--vp` |
-| `--selector <css>` | off | Capture only the matching element. Mutually exclusive with `--full` |
-| `--settle <ms>` | off | Skip animation freezing and wait before capturing (shoot the post-animation final state) |
-| `--full` | off | Capture the full page (default is viewport-only) |
+| `--selector <css>` | off | Target element CSS selector (element-only capture for shot, required for inspect). Mutually exclusive with `--full` |
+| `--settle <ms>` | off | Skip animation freezing and wait before running (observe the post-animation final state) |
+| `--full` | off | Capture the full page (shot only; default is viewport-only) |
+| `--props <p1,p2>` | off | Extra CSS properties for inspect (comma-separated) |
 
 Unlike the archival `site`/`page` commands, `shot` does not update meta.json and overwrites into `sites/<host>/shots/`. Localhost gets a per-port folder (e.g. `localhost_3000/`).
 
@@ -142,6 +144,29 @@ Single-page capture:
   "title": "Example",
   "http_status": 200,
   "duration_ms": 1234
+}
+```
+
+`inspect` (numeric checks beat eyeballing screenshots):
+
+```json
+{
+  "success": true,
+  "url": "http://localhost:3000/",
+  "selector": ".cta",
+  "viewport": { "width": 1440, "height": 900 },
+  "count": 1,
+  "elements": [
+    {
+      "box": { "x": 560, "y": 1200, "width": 320, "height": 56 },
+      "style": { "color": "rgb(255, 255, 255)", "font-size": "18px", "display": "flex" },
+      "text": "Contact us",
+      "overflow": { "x": 0, "y": 0 }
+    }
+  ],
+  "title": "Example",
+  "http_status": 200,
+  "duration_ms": 980
 }
 ```
 

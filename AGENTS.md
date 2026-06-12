@@ -11,6 +11,7 @@
 - The user references a sitemap.xml for batch capture
 - A captured run failed and the user wants retry guidance or an agent handoff task
 - You are iterating on a site under development and need a screenshot of a specific viewport, element, or post-animation state (`shot`)
+- You need to verify layout numerically — computed styles, bounding boxes, text, overflow amounts (`inspect`)
 
 ## Quick Reference
 
@@ -18,6 +19,7 @@
 sitesnap site <sitemap-url>           # Capture all pages from sitemap
 sitesnap page <url>                   # Capture single page
 sitesnap shot <url>                   # One-off dev-loop screenshot
+sitesnap inspect <url>                # Element style/box/text/overflow as JSON
 sitesnap list                         # List captured sites
 sitesnap open <domain>                # Open site folder in Finder
 sitesnap retry <domain>               # Retry failed pages
@@ -66,6 +68,20 @@ sitesnap shot https://example.com/ --full --json                          # clas
 - By default animations are frozen (same as `page`); `--settle <ms>` disables freezing and waits instead — use it to capture the final state after entrance animations.
 - Output goes to `sites/<host>/shots/` and is overwritten on each run; localhost is split per port (`localhost_3000/`).
 - Read `file` from the JSON output — it is the absolute path to the PNG.
+
+## Numeric element checks (`inspect`)
+
+Prefer `inspect` over eyeballing screenshots when a check is numeric: computed styles, bounding boxes, text content, overflow amounts.
+
+```bash
+sitesnap inspect http://localhost:3000/ --selector ".cta" --allow-private --json
+sitesnap inspect http://localhost:3000/ --selector "h1" --props "letter-spacing,text-transform" --allow-private --json
+sitesnap inspect https://example.com/ --selector "img" --limit 20 --json   # up to N matches (default 10)
+```
+
+- `--selector` is required. Zero matches is NOT an error: you get `count: 0` and an empty `elements` array (useful for asserting absence).
+- Each element reports `box` (getBoundingClientRect), `style` (a default set of layout/typography properties plus any `--props`), `text` (first 200 chars), and `overflow` (`scrollWidth - clientWidth` / `scrollHeight - clientHeight`, useful for clipped-content checks).
+- `--vp` / `--device` / `--settle` work the same as for `shot`, so you can measure responsive states.
 
 ## Diagnosis and agent handoff
 

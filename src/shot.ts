@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-import { devices } from "playwright"
+import { devices, type Browser } from "playwright"
 import { mkdir } from "node:fs/promises"
 import path from "node:path"
 import {
@@ -27,6 +27,9 @@ export interface ShotOptions {
   outDir?: string
   allowPrivate?: boolean
   forceVisible?: boolean
+  // 起動済み browser の再利用 (主にテスト用)。指定時は close しない。
+  // Bun では同一プロセス内で launch を繰り返すと CDP パイプが無応答になることがある
+  browser?: Browser
 }
 
 export interface ShotResult {
@@ -109,7 +112,7 @@ export function shotFileFor(url: string, opts: Pick<ShotOptions, "vp" | "device"
   return `${parts.join("--")}.png`
 }
 
-function contextOptionsForShot(opts: ShotOptions) {
+export function shotContextOptions(opts: Pick<ShotOptions, "vp" | "device">) {
   if (opts.device) return deviceDescriptorFor(opts.device)
   const v = opts.vp ?? resolvedViewport(opts)
   return {
@@ -129,10 +132,11 @@ export async function captureShot(url: string, opts: ShotOptions = {}): Promise<
   const file = path.join(dir, shotFileFor(url, opts))
   await mkdir(dir, { recursive: true })
 
-  const browser = await launchChromium()
+  const browser = opts.browser ?? (await launchChromium())
+  let ctx: Awaited<ReturnType<Browser["newContext"]>> | undefined
   try {
-    const ctx = await browser.newContext({
-      ...contextOptionsForShot(opts),
+    ctx = await browser.newContext({
+      ...shotContextOptions(opts),
       locale: DEFAULTS.locale,
       timezoneId: DEFAULTS.timezone,
       // --settle はアニメ完了後の最終状態を撮るためのフラグなので凍結しない
@@ -193,6 +197,10 @@ export async function captureShot(url: string, opts: ShotOptions = {}): Promise<
       duration_ms: Date.now() - startedAt,
     }
   } finally {
-    await browser.close()
+    if (opts.browser) {
+      await ctx?.close()
+    } else {
+      await browser.close()
+    }
   }
 }

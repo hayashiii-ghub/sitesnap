@@ -6,6 +6,7 @@ import { captureUrls } from "./capture.ts"
 import type { CliContext } from "./cli-args.ts"
 import { analyzeRunDirectory, writeDoctorFiles, writeRunArtifacts } from "./doctor.ts"
 import { buildIndex, buildSiteMeta, type SiteMeta } from "./meta.ts"
+import { inspectUrl } from "./inspect.ts"
 import { formatSuccess } from "./output.ts"
 import { captureShot } from "./shot.ts"
 import { expandSitemap } from "./sitemap.ts"
@@ -174,6 +175,35 @@ async function cmdShot(ctx: CliContext): Promise<CommandResult> {
   )
 }
 
+async function cmdInspect(ctx: CliContext): Promise<CommandResult> {
+  const url = ctx.args[0]
+  if (!url) {
+    return fail("使い方: sitesnap inspect <url> --selector <css>")
+  }
+  const report = await inspectUrl(url, {
+    vp: ctx.shotOptions.vp,
+    device: ctx.shotOptions.device,
+    settleMs: ctx.shotOptions.settleMs,
+    selector: ctx.shotOptions.selector,
+    props: ctx.shotOptions.props ?? undefined,
+    limit: ctx.limit,
+    allowPrivate: ctx.captureOptions.allowPrivate,
+  })
+  return out(
+    ctx,
+    { ...report },
+    (r) => {
+      const count = r.count as number
+      if (count === 0) return `一致する要素はありません: ${r.selector}`
+      const lines = [`${count} 件マッチ: ${r.selector}`]
+      for (const el of (r.elements as { box: { x: number; y: number; width: number; height: number } }[])) {
+        lines.push(`  ${el.box.width}x${el.box.height} @ (${el.box.x}, ${el.box.y})`)
+      }
+      return lines.join("\n")
+    }
+  )
+}
+
 async function cmdList(ctx: CliContext): Promise<CommandResult> {
   const sites = await buildIndex(ctx.outDir)
   if (ctx.json) {
@@ -304,6 +334,7 @@ export function buildCommands(): Record<string, CommandHandler> {
     site: cmdSite,
     page: cmdPage,
     shot: cmdShot,
+    inspect: cmdInspect,
     list: cmdList,
     open: cmdOpen,
     retry: cmdRetry,
