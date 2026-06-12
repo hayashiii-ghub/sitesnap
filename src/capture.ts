@@ -101,10 +101,13 @@ export function resolveCaptureTarget(
   return { domain, siteDir, otherHosts }
 }
 
-function viewportFor(mode: CaptureMode) {
+// newContext は viewport を { viewport: {width, height} } とネストして受け取る。
+// トップレベル spread だと width/height が捨てられ Playwright デフォルト寸法になる
+export function contextOptionsFor(mode: CaptureMode) {
   const v = DEFAULTS.viewports[mode]
   if (typeof v === "string") return devices[v]
-  return v
+  const { width, height, deviceScaleFactor, isMobile, hasTouch } = v
+  return { viewport: { width, height }, deviceScaleFactor, isMobile, hasTouch }
 }
 
 function createCaptureLogger(opts: CaptureOptions): (message: string) => void {
@@ -173,7 +176,7 @@ async function captureOne(
   }
 
   const ctx = await browser.newContext({
-    ...viewportFor(mode),
+    ...contextOptionsFor(mode),
     locale: DEFAULTS.locale,
     timezoneId: DEFAULTS.timezone,
     reducedMotion: "reduce",

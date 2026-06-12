@@ -103,6 +103,8 @@ sitesnap site https://example.com/sitemap.xml --force-visible --out ~/captures
   "url": "https://example.com/about",
   "desktop": true,
   "mobile": true,
+  "desktop_path": "/abs/sites/example.com/desktop/about.png",
+  "mobile_path": "/abs/sites/example.com/mobile/about.png",
   "errors": [],
   "out_dir": "/abs/sites",
   "run_dir": "/abs/sites/example.com/runs/latest"

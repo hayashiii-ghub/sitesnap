@@ -140,6 +140,8 @@ async function cmdPage(ctx: CliContext): Promise<CommandResult> {
       url,
       desktop: !!page?.desktop,
       mobile: !!page?.mobile,
+      desktop_path: page?.desktop ? path.join(siteDir!, page.desktop) : null,
+      mobile_path: page?.mobile ? path.join(siteDir!, page.mobile) : null,
       errors: failed.map((r) => r.error),
       out_dir: ctx.outDir,
       run_dir: runDir,

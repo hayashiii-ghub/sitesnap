@@ -75,6 +75,8 @@ sitesnap doctor sites/example.com/runs/latest --agent-task --json
   "url": "https://example.com",
   "desktop": true,
   "mobile": true,
+  "desktop_path": "/abs/sites/example.com/desktop/index.png",
+  "mobile_path": "/abs/sites/example.com/mobile/index.png",
   "errors": [],
   "out_dir": "/abs/sites"
 }

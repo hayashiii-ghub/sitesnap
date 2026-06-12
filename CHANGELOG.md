@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Desktop captures now honor the configured 1440×900 viewport.** Viewport options were spread at the top level of `browser.newContext()`, so Playwright silently fell back to its 1280×720 default. Regression-tested against actual PNG dimensions.
+
 ### Added
+- `page --json` now returns `desktop_path` / `mobile_path` with absolute paths to the captured images, so agents no longer need to read `meta.json` to locate files.
 - Added `pack:smoke` to verify npm package contents and the installed `sitesnap --version` command before publishing.
 - Added CI verification for the npm package smoke test.
 - Added README JSON output examples and development instructions aligned with `@hayashiii/pdfmint`.
