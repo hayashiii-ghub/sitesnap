@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-13
+
 ### Fixed
 - **Desktop captures now honor the configured 1440×900 viewport.** Viewport options were spread at the top level of `browser.newContext()`, so Playwright silently fell back to its 1280×720 default. Regression-tested against actual PNG dimensions.
 
