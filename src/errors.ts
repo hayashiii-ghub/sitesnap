@@ -12,6 +12,8 @@ export type ErrorCode =
   | "OUTPUT_DIR_NOT_WRITABLE"
   | "DOMAIN_NOT_FOUND"
   | "META_NOT_FOUND"
+  | "UNKNOWN_DEVICE"
+  | "ELEMENT_NOT_FOUND"
 
 export interface ErrorContext {
   url?: string

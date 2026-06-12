@@ -10,12 +10,14 @@
 - The user wants to archive a website's pages as PNG images
 - The user references a sitemap.xml for batch capture
 - A captured run failed and the user wants retry guidance or an agent handoff task
+- You are iterating on a site under development and need a screenshot of a specific viewport, element, or post-animation state (`shot`)
 
 ## Quick Reference
 
 ```bash
 sitesnap site <sitemap-url>           # Capture all pages from sitemap
 sitesnap page <url>                   # Capture single page
+sitesnap shot <url>                   # One-off dev-loop screenshot
 sitesnap list                         # List captured sites
 sitesnap open <domain>                # Open site folder in Finder
 sitesnap retry <domain>               # Retry failed pages
@@ -46,6 +48,24 @@ sitesnap site https://example.com/sitemap.xml \
 - Use `--exclude <regex>` to skip tracking URLs or irrelevant page groups.
 - Use `--wait-ms <ms>` and `--pre-scroll <full-page|none>` when a retry needs different screenshot timing.
 - Use `--strict` in CI when any failed page should fail the command.
+
+## Dev-loop screenshots (`shot`)
+
+Use `shot` instead of `page` while developing a site. It captures viewport-only by default (AI-readable, unlike a 9000px-tall full-page PNG), returns the absolute file path directly in JSON, and never touches meta.json.
+
+```bash
+sitesnap shot http://localhost:3000/about --allow-private --json          # above-the-fold at 1440x900
+sitesnap shot http://localhost:3000/ --selector "footer" --allow-private --json   # one element only
+sitesnap shot https://example.com/ --device "iPhone 13" --json            # device emulation
+sitesnap shot https://example.com/ --settle 1500 --json                   # wait for entrance animations, no freezing
+sitesnap shot https://example.com/ --full --json                          # classic full-page
+```
+
+- `--vp <WxH>` sets the viewport (default 1440x900); mutually exclusive with `--device`.
+- `--selector` and `--full` are mutually exclusive.
+- By default animations are frozen (same as `page`); `--settle <ms>` disables freezing and waits instead — use it to capture the final state after entrance animations.
+- Output goes to `sites/<host>/shots/` and is overwritten on each run; localhost is split per port (`localhost_3000/`).
+- Read `file` from the JSON output — it is the absolute path to the PNG.
 
 ## Diagnosis and agent handoff
 

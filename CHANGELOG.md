@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Desktop captures now honor the configured 1440×900 viewport.** Viewport options were spread at the top level of `browser.newContext()`, so Playwright silently fell back to its 1280×720 default. Regression-tested against actual PNG dimensions.
 
 ### Added
+- **`sitesnap shot <url>`**: one-off dev-loop screenshot command. Captures viewport-only by default (AI-readable), supports `--vp <WxH>`, `--device <name>`, `--selector <css>` (element-only), `--settle <ms>` (wait for entrance animations instead of freezing them), and `--full`. Returns the absolute PNG path in JSON, never touches meta.json, and splits localhost output per port (`localhost_3000/`).
 - `page --json` now returns `desktop_path` / `mobile_path` with absolute paths to the captured images, so agents no longer need to read `meta.json` to locate files.
 - Added `pack:smoke` to verify npm package contents and the installed `sitesnap --version` command before publishing.
 - Added CI verification for the npm package smoke test.

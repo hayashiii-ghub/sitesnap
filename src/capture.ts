@@ -119,7 +119,20 @@ async function prepareCaptureDirs(siteDir: string): Promise<void> {
   await mkdir(path.join(siteDir, "mobile"), { recursive: true })
 }
 
-async function autoScroll(page: import("playwright").Page): Promise<void> {
+export async function launchChromium(): Promise<Browser> {
+  try {
+    return await chromium.launch()
+  } catch (err) {
+    throw new SiteSnapError(
+      "BROWSER_LAUNCH_FAILED",
+      `Chromium の起動に失敗しました: ${(err as Error).message}`,
+      "Playwright の Chromium を再インストールしてください: bunx playwright install chromium",
+      {}
+    )
+  }
+}
+
+export async function autoScroll(page: import("playwright").Page): Promise<void> {
   await page.evaluate(
     async ({ step, interval }) => {
       await new Promise<void>((resolve) => {
@@ -140,7 +153,7 @@ async function autoScroll(page: import("playwright").Page): Promise<void> {
   await page.waitForTimeout(DEFAULTS.postScrollWait)
 }
 
-const FREEZE_ANIMATIONS_CSS = `
+export const FREEZE_ANIMATIONS_CSS = `
   *, *::before, *::after {
     animation-duration: 0.001s !important;
     animation-delay: 0s !important;
@@ -149,7 +162,7 @@ const FREEZE_ANIMATIONS_CSS = `
   }
 `
 
-const FORCE_VISIBLE_CSS = `
+export const FORCE_VISIBLE_CSS = `
   [data-aos], [data-sr], .reveal, .scroll-reveal,
   .wow, .animated, [class*="fadeIn"], [class*="slideIn"],
   [class*="fade-in"], [class*="slide-in"] {
@@ -276,17 +289,7 @@ export async function captureUrls(urls: string[], opts: CaptureOptions = {}): Pr
   const siteDir = target.siteDir!
   await prepareCaptureDirs(siteDir)
 
-  let browser: Browser
-  try {
-    browser = await chromium.launch()
-  } catch (err) {
-    throw new SiteSnapError(
-      "BROWSER_LAUNCH_FAILED",
-      `Chromium の起動に失敗しました: ${(err as Error).message}`,
-      "Playwright の Chromium を再インストールしてください: bunx playwright install chromium",
-      {}
-    )
-  }
+  const browser = await launchChromium()
   let results: CaptureResult[] = []
 
   try {

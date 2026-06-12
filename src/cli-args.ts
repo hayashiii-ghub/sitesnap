@@ -2,6 +2,7 @@ import path from "node:path"
 import type { CaptureOptions } from "./capture.ts"
 import { DEFAULTS } from "./config.ts"
 import { SiteSnapError } from "./errors.ts"
+import { parseViewport, type Viewport } from "./shot.ts"
 
 export const HELP = `
 sitesnap — ウェブサイトのスクリーンショットを一括キャプチャするCLI
@@ -9,6 +10,7 @@ sitesnap — ウェブサイトのスクリーンショットを一括キャプ�
 使い方:
   sitesnap site <sitemap-url>     sitemapから全ページをキャプチャ
   sitesnap page <url>              1ページだけキャプチャ
+  sitesnap shot <url>              開発検証用の単発スクリーンショット
   sitesnap list                    キャプチャ済みサイト一覧
   sitesnap open <domain>           Finderでサイトのフォルダを開く
   sitesnap retry <domain>          失敗したページのみ再取得
@@ -32,13 +34,31 @@ sitesnap — ウェブサイトのスクリーンショットを一括キャプ�
   --strict                              1ページでも失敗したら非ゼロ終了（CI向け）
   --allow-private                       localhost/プライベートIPへのアクセスを許可
 
+shot 専用フラグ:
+  --vp <WxH>                            ビューポートサイズ（デフォルト 1440x900）
+  --device <name>                       Playwrightデバイス名（例: "iPhone 13"）
+  --selector <css>                      指定要素だけ撮影
+  --settle <ms>                         アニメ凍結せず指定ms待ってから撮影
+  --full                                フルページ撮影（デフォルトはビューポートのみ）
+
 使用例:
+  sitesnap shot http://localhost:3000/about --allow-private --json
+  sitesnap shot https://example.com/ --selector "footer" --json
+  sitesnap shot https://example.com/ --device "iPhone 13" --settle 1500 --json
   sitesnap site https://example.com/sitemap.xml --limit 10
   sitesnap site https://example.com/sitemap.xml --exclude '\\?utm_'
   sitesnap site https://example.com/sitemap.xml --concurrency 5 --min-interval 250
   sitesnap site https://example.com/sitemap.xml --strict
   sitesnap site http://localhost:8080/sitemap.xml --allow-private
 `
+
+export interface ShotCliOptions {
+  vp: Viewport | null
+  device: string | null
+  selector: string | null
+  settleMs: number | null
+  full: boolean
+}
 
 export interface CliContext {
   sub: string | undefined
@@ -48,6 +68,7 @@ export interface CliContext {
   agentTask: boolean
   outDir: string
   captureOptions: CaptureOptions
+  shotOptions: ShotCliOptions
   limit: number | null
   exclude: RegExp | null
   minInterval: number | null
@@ -76,6 +97,7 @@ function parseNonNegativeInteger(value: string, flag: string): number {
 const maxPositionalArgsBySubcommand: Record<string, number> = {
   site: 1,
   page: 1,
+  shot: 1,
   list: 0,
   open: 1,
   retry: 1,
@@ -85,6 +107,7 @@ const maxPositionalArgsBySubcommand: Record<string, number> = {
 const usageArgBySubcommand: Record<string, string> = {
   site: " <sitemap-url>",
   page: " <url>",
+  shot: " <url>",
   open: " <domain>",
   retry: " <domain>",
   doctor: " <run-dir>",
@@ -110,6 +133,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
   const strict = argv.includes("--strict")
   const allowPrivate = argv.includes("--allow-private")
   const agentTask = argv.includes("--agent-task")
+  const full = argv.includes("--full")
 
   let outDir = env.SITESNAP_OUT || DEFAULTS.sitesDir
   let limit: number | null = null
@@ -118,8 +142,19 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
   let minInterval: number | null = null
   let waitMs: number | null = null
   let preScroll: "full-page" | "none" | null = null
+  let vp: Viewport | null = null
+  let device: string | null = null
+  let selector: string | null = null
+  let settleMs: number | null = null
 
-  const flagSet = new Set(["--json", "--force-visible", "--strict", "--allow-private", "--agent-task"])
+  const flagSet = new Set([
+    "--json",
+    "--force-visible",
+    "--strict",
+    "--allow-private",
+    "--agent-task",
+    "--full",
+  ])
   const valueFlags = new Set([
     "--out",
     "--limit",
@@ -128,6 +163,10 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
     "--min-interval",
     "--wait-ms",
     "--pre-scroll",
+    "--vp",
+    "--device",
+    "--selector",
+    "--settle",
   ])
   const args: string[] = []
   for (let i = 1; i < argv.length; i++) {
@@ -154,7 +193,10 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
           throw invalidOption("--pre-scroll は full-page または none を指定してください", "--pre-scroll <full-page|none> の形式で指定してください。")
         }
         preScroll = v
-      }
+      } else if (a === "--vp") vp = parseViewport(v)
+      else if (a === "--device") device = v
+      else if (a === "--selector") selector = v
+      else if (a === "--settle") settleMs = parseNonNegativeInteger(v, a)
       continue
     }
     if (a.startsWith("-")) {
@@ -164,6 +206,13 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
   }
   outDir = path.resolve(outDir)
   validatePositionalArity(sub, args)
+
+  if (vp && device) {
+    throw invalidOption("--vp と --device は同時に指定できません", "ビューポートはどちらか一方で指定してください。")
+  }
+  if (selector && full) {
+    throw invalidOption("--selector と --full は同時に指定できません", "要素撮影とフルページ撮影はどちらか一方で指定してください。")
+  }
 
   return {
     sub,
@@ -180,6 +229,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
       waitMs: waitMs ?? undefined,
       preScroll: preScroll ?? undefined,
     },
+    shotOptions: { vp, device, selector, settleMs, full },
     limit,
     exclude,
     minInterval,

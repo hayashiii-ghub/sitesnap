@@ -7,6 +7,7 @@ import type { CliContext } from "./cli-args.ts"
 import { analyzeRunDirectory, writeDoctorFiles, writeRunArtifacts } from "./doctor.ts"
 import { buildIndex, buildSiteMeta, type SiteMeta } from "./meta.ts"
 import { formatSuccess } from "./output.ts"
+import { captureShot } from "./shot.ts"
 import { expandSitemap } from "./sitemap.ts"
 
 export interface CommandResult {
@@ -155,6 +156,24 @@ async function cmdPage(ctx: CliContext): Promise<CommandResult> {
   return withExitCode(result, ctx.strict && failed.length > 0 ? 1 : 0)
 }
 
+async function cmdShot(ctx: CliContext): Promise<CommandResult> {
+  const url = ctx.args[0]
+  if (!url) {
+    return fail("使い方: sitesnap shot <url>")
+  }
+  const shot = await captureShot(url, {
+    ...ctx.shotOptions,
+    outDir: ctx.outDir,
+    allowPrivate: ctx.captureOptions.allowPrivate,
+    forceVisible: ctx.captureOptions.forceVisible,
+  })
+  return out(
+    ctx,
+    { ...shot },
+    (r) => `撮影完了: ${r.file} (${(r.viewport as { width: number }).width}x${(r.viewport as { height: number }).height}${r.full ? ", full" : ""}${r.selector ? `, selector: ${r.selector}` : ""})`
+  )
+}
+
 async function cmdList(ctx: CliContext): Promise<CommandResult> {
   const sites = await buildIndex(ctx.outDir)
   if (ctx.json) {
@@ -284,6 +303,7 @@ export function buildCommands(): Record<string, CommandHandler> {
   return {
     site: cmdSite,
     page: cmdPage,
+    shot: cmdShot,
     list: cmdList,
     open: cmdOpen,
     retry: cmdRetry,

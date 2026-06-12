@@ -44,6 +44,9 @@ sitesnap site https://example.com/sitemap.xml
 # 1ページだけ
 sitesnap page https://example.com/about
 
+# 開発検証用の単発スクショ(ビューポートのみ・要素指定可)
+sitesnap shot http://localhost:3000/ --allow-private --selector "footer" --json
+
 # キャプチャ済みのサイト一覧
 sitesnap list
 
@@ -62,6 +65,7 @@ sitesnap site https://example.com/sitemap.xml --json
 |---|---|
 | `sitesnap site <sitemap-url>` | sitemapから全URL展開 → 全ページキャプチャ |
 | `sitesnap page <url>` | 単一ページのみキャプチャ |
+| `sitesnap shot <url>` | 開発検証用の単発スクリーンショット(ビューポート・要素・フルページ) |
 | `sitesnap list` | キャプチャ済みサイト一覧 |
 | `sitesnap open <domain>` | Finderでサイトのフォルダを開く |
 | `sitesnap retry <domain>` | 失敗したページのみ再取得 |
@@ -84,6 +88,18 @@ sitesnap site https://example.com/sitemap.xml --json
 | `--min-interval <ms>` | 0 | 同一ホストへの最小間隔(ms)。サーバーに優しい運用に |
 | `--strict` | off | 1ページでも失敗したら非ゼロ終了(CI向け) |
 | `--allow-private` | off | localhost/プライベートIPへのアクセスを許可 |
+
+### shot 専用フラグ
+
+| フラグ | デフォルト | 説明 |
+|---|---|---|
+| `--vp <WxH>` | `1440x900` | ビューポートサイズ |
+| `--device <name>` | off | Playwrightデバイス名(例: `"iPhone 13"`)。`--vp` と排他 |
+| `--selector <css>` | off | 指定要素だけ撮影。`--full` と排他 |
+| `--settle <ms>` | off | アニメ凍結せず指定ms待ってから撮影(入場アニメ完了後の最終状態を撮る) |
+| `--full` | off | フルページ撮影(デフォルトはビューポートのみ) |
+
+`shot` はアーカイブ用の `site`/`page` と違い、meta.json を更新せず `sites/<host>/shots/` に上書き保存します。localhost はポートごとにフォルダが分かれます(例: `localhost_3000/`)。
 
 ```bash
 sitesnap list --json
@@ -108,6 +124,24 @@ sitesnap site https://example.com/sitemap.xml --force-visible --out ~/captures
   "errors": [],
   "out_dir": "/abs/sites",
   "run_dir": "/abs/sites/example.com/runs/latest"
+}
+```
+
+`shot` の場合:
+
+```json
+{
+  "success": true,
+  "url": "http://localhost:3000/",
+  "file": "/abs/sites/localhost_3000/shots/index--1440x900--sel-footer.png",
+  "viewport": { "width": 1440, "height": 900 },
+  "device": null,
+  "selector": "footer",
+  "full": false,
+  "settle_ms": null,
+  "title": "Example",
+  "http_status": 200,
+  "duration_ms": 1234
 }
 ```
 

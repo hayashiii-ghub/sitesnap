@@ -16,6 +16,7 @@ function baseCtx(overrides: Partial<CliContext> = {}): CliContext {
       forceVisible: false,
       allowPrivate: false,
     },
+    shotOptions: { vp: null, device: null, selector: null, settleMs: null, full: false },
     limit: null,
     exclude: null,
     minInterval: null,

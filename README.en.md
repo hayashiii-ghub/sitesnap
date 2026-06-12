@@ -44,6 +44,9 @@ sitesnap site https://example.com/sitemap.xml
 # capture a single page
 sitesnap page https://example.com/about
 
+# one-off dev-loop screenshot (viewport-only, element capture supported)
+sitesnap shot http://localhost:3000/ --allow-private --selector "footer" --json
+
 # list what you've captured so far
 sitesnap list
 
@@ -62,6 +65,7 @@ sitesnap site https://example.com/sitemap.xml --json
 |---|---|
 | `sitesnap site <sitemap-url>` | Expand sitemap → capture every URL |
 | `sitesnap page <url>` | Capture a single page |
+| `sitesnap shot <url>` | One-off dev-loop screenshot (viewport, element, or full page) |
 | `sitesnap list` | List captured sites |
 | `sitesnap open <domain>` | Open the site's folder in Finder |
 | `sitesnap retry <domain>` | Re-capture pages that failed previously |
@@ -84,6 +88,18 @@ sitesnap site https://example.com/sitemap.xml --json
 | `--min-interval <ms>` | 0 | Minimum delay between requests to the same host |
 | `--strict` | off | Exit with non-zero status if any page failed to capture |
 | `--allow-private` | off | Allow loopback / RFC1918 / link-local hosts |
+
+### shot-only flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--vp <WxH>` | `1440x900` | Viewport size |
+| `--device <name>` | off | Playwright device name (e.g. `"iPhone 13"`). Mutually exclusive with `--vp` |
+| `--selector <css>` | off | Capture only the matching element. Mutually exclusive with `--full` |
+| `--settle <ms>` | off | Skip animation freezing and wait before capturing (shoot the post-animation final state) |
+| `--full` | off | Capture the full page (default is viewport-only) |
+
+Unlike the archival `site`/`page` commands, `shot` does not update meta.json and overwrites into `sites/<host>/shots/`. Localhost gets a per-port folder (e.g. `localhost_3000/`).
 
 ```bash
 sitesnap list --json
@@ -108,6 +124,24 @@ Single-page capture:
   "errors": [],
   "out_dir": "/abs/sites",
   "run_dir": "/abs/sites/example.com/runs/latest"
+}
+```
+
+`shot`:
+
+```json
+{
+  "success": true,
+  "url": "http://localhost:3000/",
+  "file": "/abs/sites/localhost_3000/shots/index--1440x900--sel-footer.png",
+  "viewport": { "width": 1440, "height": 900 },
+  "device": null,
+  "selector": "footer",
+  "full": false,
+  "settle_ms": null,
+  "title": "Example",
+  "http_status": 200,
+  "duration_ms": 1234
 }
 ```
 
