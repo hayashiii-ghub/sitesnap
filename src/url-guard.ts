@@ -33,6 +33,8 @@ export function isPrivateHost(host: string | null | undefined): boolean {
 
 export interface UrlGuardOptions {
   allowPrivate?: boolean
+  // file:// (ローカル HTML モックの直撮り) を許可する。shot 専用のオプトイン
+  allowFile?: boolean
 }
 
 export function assertPublicUrl(url: string, opts: UrlGuardOptions = {}): void {
@@ -47,11 +49,15 @@ export function assertPublicUrl(url: string, opts: UrlGuardOptions = {}): void {
       { url }
     )
   }
+  // file:// は明示的な --allow-file のときだけ許可。host チェックは不要
+  if (parsed.protocol === "file:" && opts.allowFile) return
   if (!["http:", "https:"].includes(parsed.protocol)) {
     throw new SiteSnapError(
       "INVALID_URL",
       `サポートされていないプロトコル: ${parsed.protocol} (http/https のみ対応)`,
-      "http:// または https:// のURLを指定してください。",
+      parsed.protocol === "file:"
+        ? "ローカルファイルを撮る場合は --allow-file を付けてください。"
+        : "http:// または https:// のURLを指定してください。",
       { url }
     )
   }

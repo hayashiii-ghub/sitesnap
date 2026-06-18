@@ -102,7 +102,26 @@ sitesnap site https://example.com/sitemap.xml --json
 | `--full` | off | フルページ撮影(shotのみ。デフォルトはビューポートのみ) |
 | `--props <p1,p2>` | off | inspectで追加取得するCSSプロパティ(カンマ区切り) |
 
-`shot` はアーカイブ用の `site`/`page` と違い、meta.json を更新せず `sites/<host>/shots/` に上書き保存します。localhost はポートごとにフォルダが分かれます(例: `localhost_3000/`)。
+### shot の撮影前インタラクション / 状態指定
+
+CSSラジオのタブ切替や `<details>` の開閉など、撮影前にDOM状態を変えないと撮れないUIを、一時コピーを作らずに撮り分けるためのフラグ。
+
+| フラグ | デフォルト | 説明 |
+|---|---|---|
+| `--click <css>` | off | 撮影前にクリック(**繰り返し可**。CSSタブ切替/details展開など)。左から順に実行 |
+| `--eval <js>` | off | 撮影前に任意JSを実行(clickで書けない状態の逃げ道。基本は `--click`) |
+| `--label <name>` | off | 出力ファイル名に付ける状態ラベル。**状態違いを撮り分ける際は必須**(未指定だと同名で上書き) |
+| `--allow-file` | off | `file://` のローカルHTMLを直撮りする(shotのみ。サーバ不要) |
+
+```bash
+# CSS ラジオタブの状態を撮り分け(--label で別ファイルに)
+sitesnap shot http://localhost:3000/ --allow-private --click ".tab-user"  --label user  --json
+sitesnap shot http://localhost:3000/ --allow-private --click ".tab-admin" --label admin --json
+# ローカルの静的HTMLモックをサーバ無しで直撮り
+sitesnap shot file:///abs/path/mock.html --allow-file --click "summary" --label open --json
+```
+
+`shot` はアーカイブ用の `site`/`page` と違い、meta.json を更新せず `sites/<host>/shots/` に上書き保存します。localhost はポートごとにフォルダが分かれます(例: `localhost_3000/`)。`file://` は `_file/` フォルダにまとまります。
 
 ```bash
 sitesnap list --json

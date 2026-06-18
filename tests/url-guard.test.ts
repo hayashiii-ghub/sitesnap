@@ -47,6 +47,13 @@ test("assertPublicUrl: allowPrivate=true bypasses host check but keeps protocol 
   );
 });
 
+test("assertPublicUrl: allowFile=true で file:// を許可する", () => {
+  expect(() => assertPublicUrl("file:///Users/me/mock.html", { allowFile: true })).not.toThrow();
+  // allowFile は file:// 限定。他プロトコルは変わらず弾く
+  expect(() => assertPublicUrl("ftp://example.com/", { allowFile: true })).toThrow(/プロトコル/);
+  expect(() => assertPublicUrl("data:text/plain,hi", { allowFile: true })).toThrow(/プロトコル/);
+});
+
 test("isPrivateHost: bracketed IPv6 (URL.hostname returns brackets)", () => {
   expect(isPrivateHost("[::1]")).toBe(true);
 });

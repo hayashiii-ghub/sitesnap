@@ -14,7 +14,7 @@ function ctxFor(url: string, strict: boolean): CliContext {
     agentTask: false,
     outDir: "/tmp/sitesnap-check-cli",
     captureOptions: { allowPrivate: true },
-    shotOptions: { vp: null, device: null, selector: null, settleMs: null, full: false, props: null },
+    shotOptions: { vp: null, device: null, selector: null, settleMs: null, full: false, props: null, label: null, clicks: [], evalJs: null },
     limit: null,
     exclude: null,
     minInterval: null,

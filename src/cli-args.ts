@@ -44,10 +44,18 @@ shot / inspect / check 用フラグ:
   --full                                フルページ撮影（shotのみ。デフォルトはビューポートのみ）
   --props <p1,p2>                       inspectで追加取得するCSSプロパティ（カンマ区切り）
 
+shot の撮影前インタラクション / 状態指定:
+  --click <css>                         撮影前にクリック（繰り返し可。CSSタブ切替/details展開など）
+  --eval <js>                           撮影前に任意JSを実行（clickで書けない状態の逃げ道）
+  --label <name>                        出力ファイル名に付ける状態ラベル（状態違いの撮り分け）
+  --allow-file                          file:// のローカルHTMLを直撮りする（shotのみ）
+
 使用例:
   sitesnap shot http://localhost:3000/about --allow-private --json
   sitesnap shot https://example.com/ --selector "footer" --json
   sitesnap shot https://example.com/ --device "iPhone 13" --settle 1500 --json
+  sitesnap shot http://localhost:3000/ --allow-private --click ".tab-user" --label user --json
+  sitesnap shot file:///tmp/mock.html --allow-file --click "summary" --label open --json
   sitesnap inspect https://example.com/ --selector ".cta" --props "letter-spacing" --json
   sitesnap check http://localhost:3000/ --allow-private --strict --json
   sitesnap site https://example.com/sitemap.xml --limit 10
@@ -64,6 +72,9 @@ export interface ShotCliOptions {
   settleMs: number | null
   full: boolean
   props: string[] | null
+  label: string | null
+  clicks: string[]
+  evalJs: string | null
 }
 
 export interface CliContext {
@@ -142,6 +153,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
   const forceVisible = argv.includes("--force-visible")
   const strict = argv.includes("--strict")
   const allowPrivate = argv.includes("--allow-private")
+  const allowFile = argv.includes("--allow-file")
   const agentTask = argv.includes("--agent-task")
   const full = argv.includes("--full")
 
@@ -157,12 +169,16 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
   let selector: string | null = null
   let settleMs: number | null = null
   let props: string[] | null = null
+  let label: string | null = null
+  let evalJs: string | null = null
+  const clicks: string[] = []
 
   const flagSet = new Set([
     "--json",
     "--force-visible",
     "--strict",
     "--allow-private",
+    "--allow-file",
     "--agent-task",
     "--full",
   ])
@@ -179,6 +195,9 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
     "--selector",
     "--settle",
     "--props",
+    "--label",
+    "--click",
+    "--eval",
   ])
   const args: string[] = []
   for (let i = 1; i < argv.length; i++) {
@@ -210,6 +229,9 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
       else if (a === "--selector") selector = v
       else if (a === "--settle") settleMs = parseNonNegativeInteger(v, a)
       else if (a === "--props") props = v.split(",").map((p) => p.trim()).filter(Boolean)
+      else if (a === "--label") label = v
+      else if (a === "--click") clicks.push(v)
+      else if (a === "--eval") evalJs = v
       continue
     }
     if (a.startsWith("-")) {
@@ -238,11 +260,12 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
       forceVisible,
       outDir,
       allowPrivate,
+      allowFile,
       concurrency: concurrency ?? undefined,
       waitMs: waitMs ?? undefined,
       preScroll: preScroll ?? undefined,
     },
-    shotOptions: { vp, device, selector, settleMs, full, props },
+    shotOptions: { vp, device, selector, settleMs, full, props, label, clicks, evalJs },
     limit,
     exclude,
     minInterval,

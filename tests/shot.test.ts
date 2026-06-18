@@ -31,6 +31,12 @@ test("shotDirFor: ポート付き URL はポートをフォルダ名に含める
   );
 });
 
+test("shotDirFor: file:// は _file フォルダにまとめる", () => {
+  expect(shotDirFor("file:///Users/me/mock.html", "/abs/sites")).toBe(
+    "/abs/sites/_file/shots"
+  );
+});
+
 // --- shotFileFor: バリアントがファイル名で衝突しない ---
 
 test("shotFileFor: デフォルトはビューポートサイズをバリアントにする", () => {
@@ -59,4 +65,24 @@ test("shotFileFor: --selector / --full はサフィックスが付く", () => {
   expect(
     shotFileFor("https://example.com/", { selector: ".hero > h1", vp: { width: 800, height: 600 } })
   ).toBe("index--800x600--sel-_hero_h1.png");
+});
+
+test("shotFileFor: --label は状態違いを区別するサフィックスになる", () => {
+  expect(shotFileFor("https://example.com/about", { label: "tab-user" })).toBe(
+    "about--1440x900--tab-user.png"
+  );
+  // selector と併用しても衝突しない
+  expect(
+    shotFileFor("https://example.com/", { selector: ".tabs", label: "tab-admin" })
+  ).toBe("index--1440x900--sel-_tabs--tab-admin.png");
+  // 同じ url/vp でも label が違えば別ファイルになる
+  expect(shotFileFor("https://example.com/", { label: "open" })).not.toBe(
+    shotFileFor("https://example.com/", { label: "closed" })
+  );
+});
+
+test("shotFileFor: --label は記号をサニタイズする", () => {
+  expect(shotFileFor("https://example.com/", { label: "state: open!" })).toBe(
+    "index--1440x900--state_open.png"
+  );
 });
