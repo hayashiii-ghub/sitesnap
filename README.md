@@ -7,14 +7,15 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node](https://img.shields.io/node/v/@hayashiii/sitesnap.svg)](https://nodejs.org)
 
-ウェブサイトのスクリーンショット(デスクトップ + モバイル)を一括キャプチャしてローカルに保管する、AIエージェントフレンドリーなCLIツール。**ポートフォリオ用のサイト集めを目的**として設計。
+AIエージェントや開発者がローカルの UI を**撮って・測って・直す**ための、Playwright ベースのスクリーンショット CLI。sitemap からの一括キャプチャやポートフォリオ用のサイト集めにも使えます。
 
-- 📁 データはJSON + PNGファイル(DB不要)
-- 🤖 Claude Code / Codex などのAIエージェントから1コマンドで実行可能(Claude Code Skill同梱)
-- 📡 `--json` フラグで構造化出力 → エージェントが結果をパース可能
-- ⚙️ 構造化エラー(`code` + `hint`)でエージェントが自動リトライしやすい
-- 🔧 TypeScript で実装、Bun 開発 / Node.js 22+ 配布のハイブリッド構成
+- 🔁 **撮って直すループ**: `shot`(単発撮影)→ `check`(overflow / console / a11y の合否)→ `inspect`(要素の数値検証)
+- 🎛️ **撮影前のDOM操作**: `--click` / `--eval` / `--label` で CSSタブや `<details>` など状態違いを撮り分け、`--allow-file` で `file://` モックを直撮り
+- 📡 全コマンド `--json` 構造化出力 + 構造化エラー(`code` + `hint`)→ エージェントがパース・自動リトライしやすい
+- 🤖 Claude Code / Codex から1コマンドで実行可能(Claude Code Skill / AGENTS.md 同梱)
+- 📁 データはJSON + PNGファイル(DB不要)、`site`/`page` は `meta.json` 付きで永続アーカイブ
 - 🌐 別プロジェクト(Astro等)から `meta.json` を読み込んで公開ポートフォリオに統合可能
+- 🔧 TypeScript で実装、Bun 開発 / Node.js 22+ 配布のハイブリッド構成
 
 ---
 
@@ -38,23 +39,20 @@ npx playwright install chromium
 ## Quick Start
 
 ```bash
-# サイトマップから全ページを一気にキャプチャ
-sitesnap site https://example.com/sitemap.xml
-
-# 1ページだけ
-sitesnap page https://example.com/about
-
-# 開発検証用の単発スクショ(ビューポートのみ・要素指定可)
+# 開発中の画面を単発撮影(ビューポートのみ・要素指定可)
 sitesnap shot http://localhost:3000/ --allow-private --selector "footer" --json
+
+# 合否ゲート: 横はみ出し / console エラー / 失敗リクエスト / a11y
+sitesnap check http://localhost:3000/ --allow-private --json
+
+# 要素の computed style・寸法・overflow を数値で検証
+sitesnap inspect http://localhost:3000/ --allow-private --selector ".cta" --json
+
+# sitemap から全ページを一括アーカイブ(ポートフォリオ収集など)
+sitesnap site https://example.com/sitemap.xml --json
 
 # キャプチャ済みのサイト一覧
 sitesnap list
-
-# サイトのフォルダを Finder で開く(macOS)
-sitesnap open example.com
-
-# AIエージェント連携(JSON出力)
-sitesnap site https://example.com/sitemap.xml --json
 ```
 
 ---

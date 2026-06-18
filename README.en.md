@@ -7,14 +7,15 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node](https://img.shields.io/node/v/@hayashiii/sitesnap.svg)](https://nodejs.org)
 
-AI-friendly CLI for capturing website screenshots (desktop + mobile) with sitemap support and per-domain organization. Built for **portfolio reference collection**.
+Playwright-based screenshot CLI for AI agents and developers to **shoot, check, and inspect** local UI in a dev loop. Also does sitemap bulk capture and portfolio reference collection.
 
-- 📁 Plain JSON + PNG output (no database)
-- 🤖 Designed for AI agents (Claude Code / Codex) — ships with a Claude Code skill
-- 📡 `--json` flag for structured stdout, parseable by any agent
-- ⚙️ Structured errors (`code` + `hint`) for easy automatic retry by agents
-- 🔧 Written in TypeScript, hybrid build (Bun for development / Node.js 22+ for distribution)
+- 🔁 **Shoot-and-fix loop**: `shot` (one-off capture) → `check` (overflow / console / a11y pass-fail) → `inspect` (numeric element checks)
+- 🎛️ **Pre-shot DOM interaction**: `--click` / `--eval` / `--label` to capture state variants (CSS tabs, `<details>`), `--allow-file` to shoot `file://` mocks directly
+- 📡 `--json` on every command + structured errors (`code` + `hint`) — easy for agents to parse and auto-retry
+- 🤖 Designed for AI agents (Claude Code / Codex) — ships with a Claude Code skill and AGENTS.md
+- 📁 Plain JSON + PNG output (no database); `site`/`page` archive with `meta.json`
 - 🌐 `meta.json` schema designed for static site generators (Astro/Next/etc.)
+- 🔧 Written in TypeScript, hybrid build (Bun for development / Node.js 22+ for distribution)
 
 ---
 
@@ -38,23 +39,20 @@ Requires **Node.js 22+**.
 ## Quick Start
 
 ```bash
-# capture an entire site from its sitemap
-sitesnap site https://example.com/sitemap.xml
-
-# capture a single page
-sitesnap page https://example.com/about
-
-# one-off dev-loop screenshot (viewport-only, element capture supported)
+# one-off screenshot of a page you're building (viewport-only, element capture supported)
 sitesnap shot http://localhost:3000/ --allow-private --selector "footer" --json
+
+# pass/fail gate: horizontal overflow / console errors / failed requests / a11y
+sitesnap check http://localhost:3000/ --allow-private --json
+
+# numeric checks: computed style, box, overflow of an element
+sitesnap inspect http://localhost:3000/ --allow-private --selector ".cta" --json
+
+# bulk-archive an entire site from its sitemap (portfolio collection, etc.)
+sitesnap site https://example.com/sitemap.xml --json
 
 # list what you've captured so far
 sitesnap list
-
-# open a captured site's folder in Finder (macOS)
-sitesnap open example.com
-
-# AI agent integration (JSON output)
-sitesnap site https://example.com/sitemap.xml --json
 ```
 
 ---

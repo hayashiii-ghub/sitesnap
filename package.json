@@ -1,7 +1,7 @@
 {
   "name": "@hayashiii/sitesnap",
   "version": "0.6.0",
-  "description": "AI-friendly CLI for capturing website screenshots (desktop + mobile) with sitemap support and per-domain organization. Built for portfolio reference collection.",
+  "description": "AI-agent-friendly Playwright CLI to screenshot, check (overflow/console/a11y), and inspect local UI in a dev loop — with pre-shot DOM interaction, sitemap bulk capture, and per-domain archives.",
   "type": "module",
   "bin": {
     "sitesnap": "dist/cli.js"
@@ -28,13 +28,16 @@
   "keywords": [
     "screenshot",
     "playwright",
-    "sitemap",
-    "portfolio",
-    "cli",
     "ai-agent",
     "claude-code",
-    "web-archive",
-    "responsive"
+    "visual-testing",
+    "dev-loop",
+    "accessibility",
+    "cli",
+    "sitemap",
+    "responsive",
+    "portfolio",
+    "web-archive"
   ],
   "author": "Hayashi <hay@shigoto.dev>",
   "license": "MIT",
