@@ -102,7 +102,26 @@ sitesnap site https://example.com/sitemap.xml --json
 | `--full` | off | Capture the full page (shot only; default is viewport-only) |
 | `--props <p1,p2>` | off | Extra CSS properties for inspect (comma-separated) |
 
-Unlike the archival `site`/`page` commands, `shot` does not update meta.json and overwrites into `sites/<host>/shots/`. Localhost gets a per-port folder (e.g. `localhost_3000/`).
+### Pre-shot interaction / state setup (shot)
+
+Flags for capturing UI that needs a DOM state change before the shot — CSS radio tabs, `<details>` toggles — without making a throwaway copy.
+
+| Flag | Default | Description |
+|---|---|---|
+| `--click <css>` | off | Click before capture (**repeatable**; CSS tab switch / details expand). Runs left to right |
+| `--eval <js>` | off | Run arbitrary JS before capture (escape hatch for states clicks can't express; prefer `--click`) |
+| `--label <name>` | off | State label appended to the output filename. **Required when capturing state variants** (otherwise they overwrite under the same name) |
+| `--allow-file` | off | Capture local HTML over `file://` (shot only; no server needed) |
+
+```bash
+# Capture CSS radio tab variants (--label keeps them in separate files)
+sitesnap shot http://localhost:3000/ --allow-private --click ".tab-user"  --label user  --json
+sitesnap shot http://localhost:3000/ --allow-private --click ".tab-admin" --label admin --json
+# Shoot a static local HTML mock with no server
+sitesnap shot file:///abs/path/mock.html --allow-file --click "summary" --label open --json
+```
+
+Unlike the archival `site`/`page` commands, `shot` does not update meta.json and overwrites into `sites/<host>/shots/`. Localhost gets a per-port folder (e.g. `localhost_3000/`). `file://` shots go under `_file/`.
 
 ```bash
 sitesnap list --json

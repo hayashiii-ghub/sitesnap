@@ -52,6 +52,28 @@ sitesnap shot https://example.com/ --full --json
 ```
 JSON の `file` が PNG の絶対パス。meta.json は更新されず `sites/<host>/shots/` に上書き保存。
 
+### 状態を仕込んで撮り分ける（CSSタブ・details・モック）
+`shot` は撮影前に DOM 状態を作れる。CSSラジオのタブ切替や `<details>` の開閉など、クリックで状態が変わる UI を**一時コピーを作らずに**撮り分けられる。
+```bash
+# CSS ラジオタブ: それぞれの状態をクリックで作って別ファイルに保存
+sitesnap shot http://localhost:3000/ --allow-private --click ".tab-user"  --label user  --json
+sitesnap shot http://localhost:3000/ --allow-private --click ".tab-admin" --label admin --json
+# <details> を開いた状態
+sitesnap shot http://localhost:3000/ --allow-private --click "summary" --label open --json
+# click で書けない状態は --eval（逃げ道。基本は --click を使う）
+sitesnap shot http://localhost:3000/ --allow-private --eval "document.documentElement.classList.add('dark')" --label dark --json
+# ローカルの静的 HTML モックをサーバ無しで直撮り
+sitesnap shot file:///abs/path/mock.html --allow-file --click ".tab-user" --label user --json
+```
+**`--label` が撮り分けの要**: 付けないと同じ url/vp のバリアントが同名で**上書き**される。状態ごとに必ず `--label` を変える。`--click` は左から順に実行。CSSトランジションを挟む場合は `--settle <ms>` を併用。
+
+### 「完成」前の検証ループ（shot → check）
+`shot` で見た目を確認したら、宣言前に `check` で横はみ出し / console エラー / a11y を合否判定する。特にモバイル幅の横はみ出しは目視で見落としやすい。
+```bash
+sitesnap shot  http://localhost:3000/ --allow-private --device "iPhone 13" --json   # 見た目
+sitesnap check http://localhost:3000/ --allow-private --device "iPhone 13" --json   # 数値で合否
+```
+
 ### 要素の数値検証（`inspect`）
 ```bash
 # computed style・boundingBox・テキスト・はみ出し量を JSON で取得
@@ -102,6 +124,8 @@ sitesnap doctor sites/example.com/runs/latest --agent-task --json
 - `DOMAIN_NOT_FOUND`: `sitesnap list --json` でキャプチャ済みdomainを確認
 - `UNKNOWN_DEVICE`: Playwright のデバイス名（`"iPhone 13"` 等）を確認
 - `ELEMENT_NOT_FOUND`: セレクタを確認、または `--settle` で描画完了を待つ
+- `INTERACTION_FAILED`: `--click` 対象が無い / `--eval` が例外。セレクタやJSを確認、`--settle` で描画完了を待つ
+- `INVALID_URL`（file://）: ローカルHTMLを直撮りするなら `--allow-file` を付ける
 
 ## Best practices
 

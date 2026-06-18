@@ -21,6 +21,8 @@ export interface CaptureOptions {
   waitMs?: number
   preScroll?: "full-page" | "none"
   allowPrivate?: boolean
+  // shot の file:// 直撮り許可。site/page では未使用
+  allowFile?: boolean
   dryRun?: boolean
   force?: boolean
   rateLimiter?: HostRateLimiter

@@ -19,6 +19,41 @@ test("parseCliArgs: shot の --device / --selector / --full をパースする",
   expect(full.shotOptions.full).toBeTrue();
 });
 
+test("parseCliArgs: shot の --label をパースする", () => {
+  const ctx = parseCliArgs(["shot", "https://example.com/", "--label", "tab-user"]);
+  expect(ctx.shotOptions.label).toBe("tab-user");
+});
+
+test("parseCliArgs: --label 未指定は null", () => {
+  const ctx = parseCliArgs(["shot", "https://example.com/"]);
+  expect(ctx.shotOptions.label).toBeNull();
+});
+
+test("parseCliArgs: --click は繰り返し指定で配列になる", () => {
+  const ctx = parseCliArgs(["shot", "https://example.com/", "--click", ".tab", "--click", "summary"]);
+  expect(ctx.shotOptions.clicks).toEqual([".tab", "summary"]);
+});
+
+test("parseCliArgs: --click 未指定は空配列", () => {
+  const ctx = parseCliArgs(["shot", "https://example.com/"]);
+  expect(ctx.shotOptions.clicks).toEqual([]);
+});
+
+test("parseCliArgs: --eval をパースする", () => {
+  const ctx = parseCliArgs(["shot", "https://example.com/", "--eval", "document.body.dataset.x = '1'"]);
+  expect(ctx.shotOptions.evalJs).toBe("document.body.dataset.x = '1'");
+});
+
+test("parseCliArgs: --eval 未指定は null", () => {
+  const ctx = parseCliArgs(["shot", "https://example.com/"]);
+  expect(ctx.shotOptions.evalJs).toBeNull();
+});
+
+test("parseCliArgs: --allow-file をパースする", () => {
+  const ctx = parseCliArgs(["shot", "file:///tmp/x.html", "--allow-file"]);
+  expect(ctx.captureOptions.allowFile).toBeTrue();
+});
+
 test("parseCliArgs: --vp と --device の併用は拒否する", () => {
   expect(() =>
     parseCliArgs(["shot", "https://example.com/", "--vp", "800x600", "--device", "iPhone 13"])

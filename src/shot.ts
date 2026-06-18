@@ -25,8 +25,18 @@ export interface ShotOptions {
   selector?: string | null
   settleMs?: number | null
   full?: boolean
+  // 状態違いの撮り分け用。ファイル名のサフィックスになり上書きを防ぐ
+  label?: string | null
+  // 撮影前に順番にクリックする CSS セレクタ (タブ切替・details 展開など)
+  clicks?: string[] | null
+  // クリック1回あたりのタイムアウト (ms)。主にテストで短縮するための内部オプション
+  clickTimeoutMs?: number
+  // 撮影前に実行する任意 JS (click で表現しにくい状態セットアップの逃げ道)
+  evalJs?: string | null
   outDir?: string
   allowPrivate?: boolean
+  // file:// (ローカル HTML モック) の直撮りを許可する
+  allowFile?: boolean
   forceVisible?: boolean
   // 起動済み browser の再利用 (主にテスト用)。指定時は close しない。
   // Bun では同一プロセス内で launch を繰り返すと CDP パイプが無応答になることがある
@@ -40,6 +50,7 @@ export interface ShotResult {
   device: string | null
   selector: string | null
   full: boolean
+  label: string | null
   settle_ms: number | null
   title: string
   http_status?: number
@@ -82,6 +93,14 @@ function selectorSlug(selector: string): string {
   return cleaned || "el"
 }
 
+function labelSlug(label: string): string {
+  const cleaned = label
+    .replace(/[^a-zA-Z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40)
+  return cleaned || "state"
+}
+
 export function resolvedViewport(opts: Pick<ShotOptions, "vp" | "device">): Viewport {
   if (opts.device) {
     const d = deviceDescriptorFor(opts.device)
@@ -96,11 +115,13 @@ export function resolvedViewport(opts: Pick<ShotOptions, "vp" | "device">): View
 // localhost のポート違いを別フォルダに分ける
 export function shotDirFor(url: string, outDir: string): string {
   const u = new URL(url)
+  // file:// は hostname が空になるので専用フォルダにまとめる
+  if (u.protocol === "file:") return path.join(outDir, "_file", "shots")
   const host = u.port ? `${u.hostname}_${u.port}` : u.hostname
   return path.join(outDir, host, "shots")
 }
 
-export function shotFileFor(url: string, opts: Pick<ShotOptions, "vp" | "device" | "selector" | "full">): string {
+export function shotFileFor(url: string, opts: Pick<ShotOptions, "vp" | "device" | "selector" | "full" | "label">): string {
   const parts: string[] = [slugify(url)]
   if (opts.device) {
     parts.push(opts.device.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, ""))
@@ -110,6 +131,7 @@ export function shotFileFor(url: string, opts: Pick<ShotOptions, "vp" | "device"
   }
   if (opts.selector) parts.push(`sel-${selectorSlug(opts.selector)}`)
   if (opts.full) parts.push("full")
+  if (opts.label) parts.push(labelSlug(opts.label))
   return `${parts.join("--")}.png`
 }
 
@@ -126,7 +148,7 @@ export function shotContextOptions(opts: Pick<ShotOptions, "vp" | "device">) {
 
 export async function captureShot(url: string, opts: ShotOptions = {}): Promise<ShotResult> {
   const startedAt = Date.now()
-  assertPublicUrl(url, { allowPrivate: opts.allowPrivate || false })
+  assertPublicUrl(url, { allowPrivate: opts.allowPrivate || false, allowFile: opts.allowFile || false })
 
   const settle = opts.settleMs ?? null
   const dir = shotDirFor(url, opts.outDir || DEFAULTS.sitesDir)
@@ -149,6 +171,46 @@ export async function captureShot(url: string, opts: ShotOptions = {}): Promise<
       timeout: DEFAULTS.navigationTimeout,
     })
     const title = await page.title()
+
+    // 撮影前の状態仕込み: eval を先に流して初期状態を仕込んでから click 操作する。
+    if (opts.evalJs) {
+      try {
+        await page.evaluate(opts.evalJs)
+      } catch (e) {
+        throw new SiteSnapError(
+          "INTERACTION_FAILED",
+          `--eval の実行に失敗しました: ${(e as Error).message}`,
+          "JS の構文やページ内の参照を確認してください。",
+          { url }
+        )
+      }
+    }
+
+    // click で CSS ラジオタブ・details 展開などの状態を作る。
+    // freeze より前に実行し、ライブなページに対して操作してから最終フレームを撮る。
+    for (const sel of opts.clicks ?? []) {
+      const target = page.locator(sel).first()
+      if ((await target.count()) === 0) {
+        throw new SiteSnapError(
+          "INTERACTION_FAILED",
+          `クリック対象の要素がありません: ${sel}`,
+          "セレクタを確認するか、--settle で描画完了を待ってから再実行してください。",
+          { url }
+        )
+      }
+      try {
+        await target.click({ timeout: opts.clickTimeoutMs ?? 10000 })
+      } catch (e) {
+        // 要素は在るが非表示・他要素に覆われている等でクリックできなかった。
+        // 生の Playwright TimeoutError をそのまま投げず INTERACTION_FAILED に包む。
+        throw new SiteSnapError(
+          "INTERACTION_FAILED",
+          `クリックに失敗しました: ${sel} (${(e as Error).message.split("\n")[0]})`,
+          "要素が表示・操作可能になるまで --settle で待つか、別のセレクタを指定してください。",
+          { url }
+        )
+      }
+    }
 
     if (settle === null) {
       await page.addStyleTag({ content: FREEZE_ANIMATIONS_CSS })
@@ -192,6 +254,7 @@ export async function captureShot(url: string, opts: ShotOptions = {}): Promise<
       device: opts.device ?? null,
       selector: opts.selector ?? null,
       full: opts.full || false,
+      label: opts.label ?? null,
       settle_ms: settle,
       title,
       http_status: response?.status(),

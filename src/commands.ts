@@ -167,6 +167,7 @@ async function cmdShot(ctx: CliContext): Promise<CommandResult> {
     ...ctx.shotOptions,
     outDir: ctx.outDir,
     allowPrivate: ctx.captureOptions.allowPrivate,
+    allowFile: ctx.captureOptions.allowFile,
     forceVisible: ctx.captureOptions.forceVisible,
   })
   return out(

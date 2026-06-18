@@ -71,6 +71,23 @@ sitesnap shot https://example.com/ --full --json                          # clas
 - Output goes to `sites/<host>/shots/` and is overwritten on each run; localhost is split per port (`localhost_3000/`).
 - Read `file` from the JSON output — it is the absolute path to the PNG.
 
+### Pre-shot interaction / state setup
+
+For UI that only renders a given state after interaction — CSS radio tabs, `<details>` toggles — set the DOM state before the shot instead of making a throwaway copy.
+
+```bash
+sitesnap shot http://localhost:3000/ --allow-private --click ".tab-user" --label user --json   # click then capture
+sitesnap shot http://localhost:3000/ --allow-private --click "summary" --label open --json     # expand a <details>
+sitesnap shot http://localhost:3000/ --allow-private --eval "document.documentElement.classList.add('dark')" --label dark --json
+sitesnap shot file:///abs/path/mock.html --allow-file --click ".tab-user" --label user --json  # local mock, no server
+```
+
+- `--click <css>` is repeatable and runs left to right. Each click waits for its target; a missing target errors with `INTERACTION_FAILED`.
+- `--eval <js>` runs before clicks — an escape hatch for states clicks can't express. Prefer `--click`.
+- `--label <name>` is **required when capturing state variants**: without it, variants of the same url/viewport overwrite the same filename. Vary the label per state.
+- `--allow-file` enables `file://` so you can shoot a static HTML mock with no dev server; those shots go under `_file/`.
+- For transitions, combine with `--settle <ms>` so the animation completes before the shot.
+
 ## Numeric element checks (`inspect`)
 
 Prefer `inspect` over eyeballing screenshots when a check is numeric: computed styles, bounding boxes, text content, overflow amounts.

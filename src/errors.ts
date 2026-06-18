@@ -14,6 +14,7 @@ export type ErrorCode =
   | "META_NOT_FOUND"
   | "UNKNOWN_DEVICE"
   | "ELEMENT_NOT_FOUND"
+  | "INTERACTION_FAILED"
 
 export interface ErrorContext {
   url?: string
