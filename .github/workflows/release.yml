@@ -10,7 +10,7 @@ on:
       - "v*"
 
 permissions:
-  contents: read
+  contents: write # GitHub Release 作成に必要
   id-token: write # OIDC trusted publishing に必須
 
 jobs:
@@ -65,3 +65,19 @@ jobs:
       # ゲートは上で実行済みなので prepublishOnly の二重実行は --ignore-scripts で回避。
       - name: Publish to npm (OIDC trusted publishing)
         run: npm publish --ignore-scripts
+
+      # publish 成功後に GitHub Release を作成（notes は CHANGELOG の該当版から）。
+      # 既存なら作り直さない（タグ再 push / ジョブ再実行で冪等）。
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          notes=$(awk -v v="$ver" '$0 ~ "^## \\[" v "\\]" {f=1;next} f && /^## \[/ {exit} f {print}' CHANGELOG.md)
+          [ -z "$notes" ] && notes="Release $GITHUB_REF_NAME"
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists, skipping."
+          else
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --title "$GITHUB_REF_NAME" --notes "$notes" --latest
+          fi
