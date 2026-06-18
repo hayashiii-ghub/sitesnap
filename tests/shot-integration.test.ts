@@ -105,6 +105,7 @@ test(
 const CLICK_HTML = `<!doctype html><html><head><title>click-test</title></head>
 <body style="margin:0">
   <button id="grow" onclick="document.getElementById('box').style.width='300px'">grow</button>
+  <button id="hidden" style="display:none">hidden</button>
   <div id="box" style="width:100px;height:100px;background:#f00"></div>
 </body></html>`;
 
@@ -194,6 +195,35 @@ test(
       await expect(
         captureShot(url, { outDir, allowPrivate: true, clicks: ["#no-such-button"] })
       ).rejects.toThrow(/クリック対象/);
+    } finally {
+      server.stop();
+      await rm(outDir, { recursive: true, force: true });
+    }
+  },
+  60000
+);
+
+test(
+  "captureShot: --click 対象が操作不能だと生エラーでなく INTERACTION_FAILED に包む",
+  async () => {
+    const server = serveClick();
+    const outDir = await mkdtemp(path.join(tmpdir(), "sitesnap-shot-"));
+    try {
+      const url = `http://127.0.0.1:${server.port}/`;
+      // #hidden は DOM に在るが display:none なのでクリックできずタイムアウトする
+      let err: unknown;
+      try {
+        await captureShot(url, {
+          outDir,
+          allowPrivate: true,
+          clicks: ["#hidden"],
+          clickTimeoutMs: 500,
+        });
+      } catch (e) {
+        err = e;
+      }
+      expect((err as { code?: string })?.code).toBe("INTERACTION_FAILED");
+      expect((err as Error).message).toMatch(/クリックに失敗/);
     } finally {
       server.stop();
       await rm(outDir, { recursive: true, force: true });

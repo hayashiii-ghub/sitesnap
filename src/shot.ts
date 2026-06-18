@@ -29,6 +29,8 @@ export interface ShotOptions {
   label?: string | null
   // 撮影前に順番にクリックする CSS セレクタ (タブ切替・details 展開など)
   clicks?: string[] | null
+  // クリック1回あたりのタイムアウト (ms)。主にテストで短縮するための内部オプション
+  clickTimeoutMs?: number
   // 撮影前に実行する任意 JS (click で表現しにくい状態セットアップの逃げ道)
   evalJs?: string | null
   outDir?: string
@@ -196,7 +198,18 @@ export async function captureShot(url: string, opts: ShotOptions = {}): Promise<
           { url }
         )
       }
-      await target.click({ timeout: 10000 })
+      try {
+        await target.click({ timeout: opts.clickTimeoutMs ?? 10000 })
+      } catch (e) {
+        // 要素は在るが非表示・他要素に覆われている等でクリックできなかった。
+        // 生の Playwright TimeoutError をそのまま投げず INTERACTION_FAILED に包む。
+        throw new SiteSnapError(
+          "INTERACTION_FAILED",
+          `クリックに失敗しました: ${sel} (${(e as Error).message.split("\n")[0]})`,
+          "要素が表示・操作可能になるまで --settle で待つか、別のセレクタを指定してください。",
+          { url }
+        )
+      }
     }
 
     if (settle === null) {
