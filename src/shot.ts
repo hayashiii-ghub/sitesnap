@@ -52,6 +52,7 @@ export interface ShotResult {
   full: boolean
   label: string | null
   settle_ms: number | null
+  created_at: string
   title: string
   http_status?: number
   duration_ms: number
@@ -256,6 +257,7 @@ export async function captureShot(url: string, opts: ShotOptions = {}): Promise<
       full: opts.full || false,
       label: opts.label ?? null,
       settle_ms: settle,
+      created_at: new Date(startedAt).toISOString(),
       title,
       http_status: response?.status(),
       duration_ms: Date.now() - startedAt,

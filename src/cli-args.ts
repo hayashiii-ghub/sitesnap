@@ -13,7 +13,8 @@ sitesnap — ウェブサイトのスクリーンショットを一括キャプ�
   sitesnap shot <url>              開発検証用の単発スクリーンショット
   sitesnap inspect <url>           要素の computed style / 寸法 / overflow を JSON で取得
   sitesnap check <url>             横はみ出し/consoleエラー/失敗リクエスト/a11y の合否レポート
-  sitesnap list                    キャプチャ済みサイト一覧
+  sitesnap list                    キャプチャ済みサイト一覧 (--shots で shot を列挙)
+  sitesnap clean [host]            溜まった shot を削除 (アーカイブには触れない)
   sitesnap open <domain>           Finderでサイトのフォルダを開く
   sitesnap retry <domain>          失敗したページのみ再取得
   sitesnap doctor <run-dir>        キャプチャ結果を診断し、再取得案を表示
@@ -50,12 +51,20 @@ shot の撮影前インタラクション / 状態指定:
   --label <name>                        出力ファイル名に付ける状態ラベル（状態違いの撮り分け）
   --allow-file                          file:// のローカルHTMLを直撮りする（shotのみ）
 
+list / clean 用フラグ:
+  --shots                               list で shot (sites/<host>/shots/) をホスト別に列挙
+  --older-than <days>                   clean で指定日数より古い shot だけ削除
+  --dry-run                             clean で削除せず対象だけ表示
+
 使用例:
   sitesnap shot http://localhost:3000/about --allow-private --json
   sitesnap shot https://example.com/ --selector "footer" --json
   sitesnap shot https://example.com/ --device "iPhone 13" --settle 1500 --json
   sitesnap shot http://localhost:3000/ --allow-private --click ".tab-user" --label user --json
   sitesnap shot file:///tmp/mock.html --allow-file --click "summary" --label open --json
+  sitesnap list --shots --json
+  sitesnap clean --older-than 7 --dry-run --json
+  sitesnap clean localhost_3000
   sitesnap inspect https://example.com/ --selector ".cta" --props "letter-spacing" --json
   sitesnap check http://localhost:3000/ --allow-private --strict --json
   sitesnap site https://example.com/sitemap.xml --limit 10
@@ -89,6 +98,9 @@ export interface CliContext {
   limit: number | null
   exclude: RegExp | null
   minInterval: number | null
+  dryRun: boolean
+  olderThan: number | null
+  shots: boolean
 }
 
 function invalidOption(message: string, hint = "sitesnap help で利用可能なオプションを確認してください。"): SiteSnapError {
@@ -121,6 +133,7 @@ const maxPositionalArgsBySubcommand: Record<string, number> = {
   open: 1,
   retry: 1,
   doctor: 1,
+  clean: 1,
 }
 
 const usageArgBySubcommand: Record<string, string> = {
@@ -132,6 +145,7 @@ const usageArgBySubcommand: Record<string, string> = {
   open: " <domain>",
   retry: " <domain>",
   doctor: " <run-dir>",
+  clean: " [host]",
 }
 
 function validatePositionalArity(sub: string | undefined, args: string[]): void {
@@ -156,6 +170,8 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
   const allowFile = argv.includes("--allow-file")
   const agentTask = argv.includes("--agent-task")
   const full = argv.includes("--full")
+  const dryRun = argv.includes("--dry-run")
+  const shots = argv.includes("--shots")
 
   let outDir = env.SITESNAP_OUT || DEFAULTS.sitesDir
   let limit: number | null = null
@@ -171,6 +187,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
   let props: string[] | null = null
   let label: string | null = null
   let evalJs: string | null = null
+  let olderThan: number | null = null
   const clicks: string[] = []
 
   const flagSet = new Set([
@@ -181,6 +198,8 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
     "--allow-file",
     "--agent-task",
     "--full",
+    "--dry-run",
+    "--shots",
   ])
   const valueFlags = new Set([
     "--out",
@@ -198,6 +217,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
     "--label",
     "--click",
     "--eval",
+    "--older-than",
   ])
   const args: string[] = []
   for (let i = 1; i < argv.length; i++) {
@@ -232,6 +252,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
       else if (a === "--label") label = v
       else if (a === "--click") clicks.push(v)
       else if (a === "--eval") evalJs = v
+      else if (a === "--older-than") olderThan = parseNonNegativeInteger(v, a)
       continue
     }
     if (a.startsWith("-")) {
@@ -269,5 +290,8 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
     limit,
     exclude,
     minInterval,
+    dryRun,
+    olderThan,
+    shots,
   }
 }

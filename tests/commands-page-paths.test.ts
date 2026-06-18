@@ -31,6 +31,9 @@ test(
         limit: null,
         exclude: null,
         minInterval: null,
+        dryRun: false,
+        olderThan: null,
+        shots: false,
       };
       const result = await buildCommands().page!(ctx);
       expect(result.exitCode).toBe(0);

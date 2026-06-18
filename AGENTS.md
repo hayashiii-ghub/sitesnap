@@ -87,6 +87,21 @@ sitesnap shot file:///abs/path/mock.html --allow-file --click ".tab-user" --labe
 - `--label <name>` is **required when capturing state variants**: without it, variants of the same url/viewport overwrite the same filename. Vary the label per state.
 - `--allow-file` enables `file://` so you can shoot a static HTML mock with no dev server; those shots go under `_file/`.
 - For transitions, combine with `--settle <ms>` so the animation completes before the shot.
+- Each shot JSON includes `created_at` (ISO) so you can reason about staleness.
+
+### Housekeeping shots (`list --shots` / `clean`)
+
+`shots/` is a scratch area that grows as you vary `--label`. It is never auto-deleted; prune it explicitly. `sites/` is gitignored, so removing shots is safe.
+
+```bash
+sitesnap list --shots --json                       # per-host count / bytes / latest mtime
+sitesnap clean --older-than 7 --dry-run --json      # preview what would be deleted
+sitesnap clean --older-than 7 --json                # actually delete (drop --dry-run)
+sitesnap clean localhost_3000 --json                # wipe one host's shots
+```
+
+- `clean` only touches `shots/`. It never deletes `site`/`page` archives (`desktop/`, `mobile/`, `meta.json`).
+- It is a destructive command with no interactive prompt (so agents can automate it). Always `--dry-run` first.
 
 ## Numeric element checks (`inspect`)
 
