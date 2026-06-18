@@ -1,0 +1,67 @@
+name: Release
+
+# v* タグの push で npm に publish する。
+# 認証は OIDC trusted publishing（トークン不要）。事前に npmjs.com 側で
+# @hayashiii/sitesnap の Trusted Publisher（repo: hayashiii-ghub/sitesnap,
+# workflow: release.yml）を登録しておくこと。
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write # OIDC trusted publishing に必須
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # publish 用の node / npm。registry-url は付けない
+      # （空トークンの .npmrc が書かれて OIDC を妨げるため）
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # trusted publishing 対応の npm を保証（>= 11.5.1）
+      - name: Ensure recent npm
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: bunx playwright install --with-deps chromium
+
+      # publish 前のゲート（package.json の prepublishOnly と同じ内容を bun で実行）
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Unit tests
+        run: bun test
+
+      - name: Build
+        run: bun run build
+
+      - name: Verify npm package
+        run: bun run pack:smoke
+
+      - name: Verify tag matches package.json version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg=$(node -p "require('./package.json').version")
+          if [ "$tag" != "$pkg" ]; then
+            echo "tag $tag != package.json $pkg"; exit 1
+          fi
+          echo "OK: $tag"
+
+      # OIDC を自動検出してトークンなしで publish（provenance も付与される）。
+      # ゲートは上で実行済みなので prepublishOnly の二重実行は --ignore-scripts で回避。
+      - name: Publish to npm (OIDC trusted publishing)
+        run: npm publish --ignore-scripts
