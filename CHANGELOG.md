@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-06-18
+
+### Changed
+- **Repositioned the docs and package metadata** to lead with the AI dev loop (`shot` → `check` → `inspect` and pre-shot `--click`/`--eval`/`--label`/`--allow-file`), with sitemap bulk capture and portfolio collection as secondary uses. Rewrote the README/README.en opening and Quick Start, the `package.json` description and keywords (npm discoverability), and the agent-facing `AGENTS.md` and `skills/sitesnap/SKILL.md` (the skill description drives when an agent selects the tool). Docs and metadata only — no behavior change.
+
 ## [0.6.0] - 2026-06-18
 
 ### Added
