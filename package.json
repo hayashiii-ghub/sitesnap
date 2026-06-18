@@ -1,6 +1,6 @@
 {
   "name": "@hayashiii/sitesnap",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "AI-friendly CLI for capturing website screenshots (desktop + mobile) with sitemap support and per-domain organization. Built for portfolio reference collection.",
   "type": "module",
   "bin": {

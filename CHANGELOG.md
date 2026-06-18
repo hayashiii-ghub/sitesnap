@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-18
+
+### Added
+- **`shot` pre-shot interaction**: `--click <css>` (repeatable), `--eval <js>`, and `--label <name>` let you set DOM state — CSS radio tabs, `<details>` toggles — before the capture and keep state variants in separate files (without `--label`, variants of the same url/viewport overwrite each other).
+- **`shot --allow-file`**: capture local HTML mocks over `file://` with no dev server. Gated opt-in; `shot` only (site/page/check/inspect still reject `file://`). Those shots go under `_file/`.
+- **`sitesnap clean [host]`**: delete accumulated shots under `sites/<host>/shots/`, with `--older-than <days>` and `--dry-run`. Only ever touches `shots/` — never the `site`/`page` archives (`desktop/`, `mobile/`, `meta.json`). No interactive prompt, so agents can automate it.
+- **`sitesnap list --shots`**: list shots per host (file count, total bytes, latest mtime) so you can see what has accumulated.
+- `shot` JSON now includes `created_at` (ISO) for staleness checks.
+
+### Changed
+- `--click` on a present-but-unactionable element (e.g. `display:none`) now surfaces as `INTERACTION_FAILED` with a hint instead of a raw Playwright timeout.
+
 ## [0.5.0] - 2026-06-13
 
 ### Fixed
