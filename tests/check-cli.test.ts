@@ -18,6 +18,9 @@ function ctxFor(url: string, strict: boolean): CliContext {
     limit: null,
     exclude: null,
     minInterval: null,
+    dryRun: false,
+    olderThan: null,
+    shots: false,
   };
 }
 

@@ -20,6 +20,9 @@ function baseCtx(overrides: Partial<CliContext> = {}): CliContext {
     limit: null,
     exclude: null,
     minInterval: null,
+    dryRun: false,
+    olderThan: null,
+    shots: false,
     ...overrides,
   };
 }

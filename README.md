@@ -68,7 +68,8 @@ sitesnap site https://example.com/sitemap.xml --json
 | `sitesnap shot <url>` | 開発検証用の単発スクリーンショット(ビューポート・要素・フルページ) |
 | `sitesnap inspect <url>` | 要素の computed style・寸法・テキスト・overflow 量を JSON で取得 |
 | `sitesnap check <url>` | 横はみ出し・consoleエラー・失敗リクエスト・axe-core a11y の合否レポート |
-| `sitesnap list` | キャプチャ済みサイト一覧 |
+| `sitesnap list` | キャプチャ済みサイト一覧(`--shots` で shot を列挙) |
+| `sitesnap clean [host]` | 溜まった shot を削除(アーカイブには触れない) |
 | `sitesnap open <domain>` | Finderでサイトのフォルダを開く |
 | `sitesnap retry <domain>` | 失敗したページのみ再取得 |
 | `sitesnap doctor <run-dir>` | キャプチャ結果を診断し、再取得案やagent向け調査票を生成 |
@@ -122,6 +123,22 @@ sitesnap shot file:///abs/path/mock.html --allow-file --click "summary" --label 
 ```
 
 `shot` はアーカイブ用の `site`/`page` と違い、meta.json を更新せず `sites/<host>/shots/` に上書き保存します。localhost はポートごとにフォルダが分かれます(例: `localhost_3000/`)。`file://` は `_file/` フォルダにまとまります。
+
+### shot の棚卸しと掃除
+
+`shots/` は使い捨て領域で、`--label` を増やすほどファイルが残ります。自動削除はされないので、溜まったら明示的に掃除します。`sites/` は gitignore 済みなので消しても安全です。
+
+```bash
+# ホスト別に 枚数 / 合計サイズ / 最新日時 を確認
+sitesnap list --shots --json
+# 7日より古い shot を「消さずに」確認してから削除
+sitesnap clean --older-than 7 --dry-run --json
+sitesnap clean --older-than 7 --json
+# 特定ホストの shot を全消し
+sitesnap clean localhost_3000
+```
+
+`clean` は **`shots/` だけ**を対象にし、`site`/`page` のアーカイブ(`desktop/` `mobile/` `meta.json`)には一切触れません。インタラクティブな確認は出ない(エージェント自動化のため)ので、**まず `--dry-run`** で対象を確認してください。
 
 ```bash
 sitesnap list --json

@@ -97,6 +97,19 @@ sitesnap check http://localhost:3000/ --allow-private --strict --json
 sitesnap list --json
 ```
 
+### shot の棚卸しと掃除（`list --shots` / `clean`）
+`shot` は `sites/<host>/shots/` に溜まる使い捨て領域。`--label` を増やすほどファイルが残るので、定期的に棚卸し・掃除する。`sites/` は gitignore 済みなので消しても安全。
+```bash
+# どのホストに何枚・何バイト溜まっているか
+sitesnap list --shots --json
+# 7日より古い shot を「消さずに」確認 → 問題なければ --dry-run を外す
+sitesnap clean --older-than 7 --dry-run --json
+sitesnap clean --older-than 7 --json
+# 特定ホストだけ全消し
+sitesnap clean localhost_3000 --json
+```
+`clean` は **`shots/` だけ**を対象にし、`site`/`page` のアーカイブ（`desktop/` `mobile/` `meta.json`）には一切触れない。破壊操作なので**まず `--dry-run`** で対象を確認するのが安全。
+
 ### サーバーに優しく一括キャプチャ
 ```bash
 sitesnap site https://example.com/sitemap.xml --concurrency 3 --min-interval 250 --json

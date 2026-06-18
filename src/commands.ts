@@ -10,6 +10,7 @@ import { buildIndex, buildSiteMeta, type SiteMeta } from "./meta.ts"
 import { inspectUrl } from "./inspect.ts"
 import { formatSuccess } from "./output.ts"
 import { captureShot } from "./shot.ts"
+import { listShots, pruneShots } from "./shot-store.ts"
 import { expandSitemap } from "./sitemap.ts"
 
 export interface CommandResult {
@@ -237,6 +238,22 @@ async function cmdCheck(ctx: CliContext): Promise<CommandResult> {
 }
 
 async function cmdList(ctx: CliContext): Promise<CommandResult> {
+  if (ctx.shots) {
+    const shots = await listShots(ctx.outDir)
+    if (ctx.json) {
+      return ok(JSON.stringify({ success: true, shots }, null, 2))
+    }
+    if (shots.length === 0) {
+      return ok(`shot はまだありません (確認先: ${ctx.outDir})。`)
+    }
+    const lines = [`shot 一覧 (${ctx.outDir}):`, ""]
+    for (const s of shots) {
+      const date = s.latest_mtime?.slice(0, 10) || "?"
+      lines.push(`  ${s.host.padEnd(30)} ${String(s.files).padStart(4)} 枚   ${formatBytes(s.bytes).padStart(9)}   ${date}`)
+    }
+    lines.push("", "古い shot は sitesnap clean で削除できます (まず --dry-run)。")
+    return ok(lines.join("\n"))
+  }
   const sites = await buildIndex(ctx.outDir)
   if (ctx.json) {
     return ok(JSON.stringify({ success: true, sites }, null, 2))
@@ -361,6 +378,40 @@ async function cmdDoctor(ctx: CliContext): Promise<CommandResult> {
   )
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+async function cmdClean(ctx: CliContext): Promise<CommandResult> {
+  const host = ctx.args[0] ?? null
+  const result = await pruneShots(ctx.outDir, {
+    host,
+    olderThanDays: ctx.olderThan,
+    dryRun: ctx.dryRun,
+  })
+  return out(
+    ctx,
+    {
+      out_dir: ctx.outDir,
+      host: host ?? null,
+      older_than_days: ctx.olderThan ?? null,
+      dry_run: result.dry_run,
+      removed_files: result.removed.length,
+      removed_bytes: result.bytes,
+      removed: result.removed.map((f) => f.file),
+    },
+    (r) => {
+      const n = r.removed_files as number
+      const size = formatBytes(r.removed_bytes as number)
+      if (n === 0) return "削除対象の shot はありません。"
+      const verb = r.dry_run ? "削除対象 (--dry-run)" : "削除しました"
+      return `${verb}: ${n} ファイル (${size})${r.dry_run ? "\n実行するには --dry-run を外してください。" : ""}`
+    }
+  )
+}
+
 export function buildCommands(): Record<string, CommandHandler> {
   return {
     site: cmdSite,
@@ -372,5 +423,6 @@ export function buildCommands(): Record<string, CommandHandler> {
     open: cmdOpen,
     retry: cmdRetry,
     doctor: cmdDoctor,
+    clean: cmdClean,
   }
 }

@@ -68,7 +68,8 @@ sitesnap site https://example.com/sitemap.xml --json
 | `sitesnap shot <url>` | One-off dev-loop screenshot (viewport, element, or full page) |
 | `sitesnap inspect <url>` | Computed style, box, text, and overflow of matching elements as JSON |
 | `sitesnap check <url>` | Pass/fail report: horizontal overflow, console errors, failed requests, axe-core a11y |
-| `sitesnap list` | List captured sites |
+| `sitesnap list` | List captured sites (`--shots` lists shots instead) |
+| `sitesnap clean [host]` | Delete accumulated shots (never touches archives) |
 | `sitesnap open <domain>` | Open the site's folder in Finder |
 | `sitesnap retry <domain>` | Re-capture pages that failed previously |
 | `sitesnap doctor <run-dir>` | Diagnose a capture run and generate retry or agent handoff files |
@@ -122,6 +123,22 @@ sitesnap shot file:///abs/path/mock.html --allow-file --click "summary" --label 
 ```
 
 Unlike the archival `site`/`page` commands, `shot` does not update meta.json and overwrites into `sites/<host>/shots/`. Localhost gets a per-port folder (e.g. `localhost_3000/`). `file://` shots go under `_file/`.
+
+### Listing and cleaning shots
+
+`shots/` is a scratch area that grows as you vary `--label`. It is never auto-deleted, so prune it explicitly. `sites/` is gitignored, so removing shots is safe.
+
+```bash
+# Per-host count / total size / latest mtime
+sitesnap list --shots --json
+# Preview shots older than 7 days, then delete
+sitesnap clean --older-than 7 --dry-run --json
+sitesnap clean --older-than 7 --json
+# Wipe one host's shots
+sitesnap clean localhost_3000
+```
+
+`clean` only targets `shots/` — it never deletes `site`/`page` archives (`desktop/`, `mobile/`, `meta.json`). There is no interactive prompt (so agents can automate it), so always `--dry-run` first.
 
 ```bash
 sitesnap list --json

@@ -38,6 +38,9 @@ test(
       // ポート付き localhost は host_port フォルダに分離される
       expect(r.file).toContain(`127.0.0.1_${server.port}${path.sep}shots`);
       expect(pngSize(await readFile(r.file))).toEqual({ width: 1440, height: 900 });
+      // created_at は ISO 文字列でパース可能
+      expect(typeof r.created_at).toBe("string");
+      expect(Number.isNaN(Date.parse(r.created_at))).toBeFalse();
     } finally {
       server.stop();
       await rm(outDir, { recursive: true, force: true });
@@ -287,6 +290,9 @@ test(
         limit: null,
         exclude: null,
         minInterval: null,
+        dryRun: false,
+        olderThan: null,
+        shots: false,
       };
       const result = await buildCommands().shot!(ctx);
       expect(result.exitCode).toBe(0);

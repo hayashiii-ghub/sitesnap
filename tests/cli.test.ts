@@ -40,6 +40,10 @@ test("CLI: help mentions new flags", async () => {
   expect(stdout).toMatch(/--label/);
   expect(stdout).toMatch(/--eval/);
   expect(stdout).toMatch(/--allow-file/);
+  expect(stdout).toMatch(/clean/);
+  expect(stdout).toMatch(/--dry-run/);
+  expect(stdout).toMatch(/--older-than/);
+  expect(stdout).toMatch(/--shots/);
 });
 
 test("CLI: site rejects private URL by default with non-zero exit", async () => {
