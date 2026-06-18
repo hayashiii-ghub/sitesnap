@@ -2,17 +2,16 @@
 
 ## What is sitesnap
 
-`@hayashiii/sitesnap` is a CLI tool for capturing screenshots of websites (desktop + mobile) with sitemap support. It is designed to be invoked by AI agents (Claude Code, Codex, etc.) for portfolio reference collection and site archive workflows.
+`@hayashiii/sitesnap` is a Playwright-based screenshot CLI designed to be invoked by AI agents (Claude Code, Codex, etc.). Its main use is a **shoot-and-fix dev loop** on a site under development — capture a screenshot, gate it on health checks, and verify layout numerically. It also does sitemap bulk capture and portfolio/site-archive workflows.
 
 ## When to use
 
-- The user asks to capture screenshots of a website
-- The user wants to archive a website's pages as PNG images
-- The user references a sitemap.xml for batch capture
-- A captured run failed and the user wants retry guidance or an agent handoff task
 - You are iterating on a site under development and need a screenshot of a specific viewport, element, or post-animation state (`shot`)
-- You need to verify layout numerically — computed styles, bounding boxes, text, overflow amounts (`inspect`)
 - You want a one-shot health gate before declaring a page done — overflow, console errors, failed requests, a11y (`check`)
+- You need to verify layout numerically — computed styles, bounding boxes, text, overflow amounts (`inspect`)
+- You need to set DOM state before the shot — CSS radio tabs, `<details>` toggles — via `--click` / `--eval`, or shoot a local `file://` mock with `--allow-file`
+- The user asks to capture or archive a website's pages as PNG images, or references a sitemap.xml for batch capture (`site` / `page`)
+- A captured run failed and the user wants retry guidance or an agent handoff task (`doctor`)
 
 ## Quick Reference
 

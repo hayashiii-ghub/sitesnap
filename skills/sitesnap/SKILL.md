@@ -1,19 +1,18 @@
 ---
 name: sitesnap
-description: Webサイトのスクリーンショット（デスクトップ + モバイル）を一括キャプチャする CLI ツール。sitemap対応・ポートフォリオ収集向け。
+description: AIエージェント/開発者がローカルUIを撮って・測って・直すための Playwright スクリーンショット CLI。shot(単発撮影)→check(overflow/console/a11y 合否)→inspect(要素の数値検証)の開発ループが主用途。撮影前の --click/--eval/--label でCSSタブや details の状態違いも撮り分け、--allow-file で file:// モックを直撮り。sitemap 一括キャプチャやポートフォリオ収集にも使える。
 ---
 
 # sitesnap Skill
 
 ## When to use this skill
 
-- ユーザーがWebサイトのスクリーンショットを撮りたいと言ったとき
-- ポートフォリオ用のサイト収集
-- sitemap.xml から全ページを一括キャプチャしたいとき
-- キャプチャ失敗の診断や再取得方針を出したいとき
 - **開発中のサイトの検証**（特定ビューポート・特定要素・アニメ完了後の状態を撮りたいとき → `shot`）
-- **レイアウトの数値検証**（computed style・寸法・はみ出し量を確認したいとき → `inspect`。スクショ目視より確実）
 - **ページの健全性ゲート**（横はみ出し・consoleエラー・失敗リクエスト・a11y をまとめて合否判定 → `check`）
+- **レイアウトの数値検証**（computed style・寸法・はみ出し量を確認したいとき → `inspect`。スクショ目視より確実）
+- **撮影前の状態指定**（CSSラジオタブや `<details>` の開閉を `--click`/`--eval` で。`file://` モックは `--allow-file` で直撮り → `shot`）
+- ユーザーがWebサイトのスクリーンショットを撮りたい / sitemap.xml から全ページを一括キャプチャ / ポートフォリオ用に収集したいとき（`site` / `page`）
+- キャプチャ失敗の診断や再取得方針を出したいとき（`doctor`）
 
 ## How to invoke
 
