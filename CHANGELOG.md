@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-06-22
+
 ### Fixed
 - **`list --shots` and `clean` now look where `shot` actually writes.** Since 0.6.2 `shot` defaults to the OS cache dir, but `list --shots` / `clean` still scanned `./sites/`, so by default the documented capture → `list --shots` → `clean` housekeeping loop silently found nothing. All three now share one resolved shot directory (cache by default, or `--out` / `SITESNAP_OUT` when set).
 
