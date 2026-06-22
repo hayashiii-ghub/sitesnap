@@ -4,7 +4,7 @@ import { rm, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { buildCommands } from "../src/commands.ts";
-import type { CliContext } from "../src/cli-args.ts";
+import { makeCtx } from "./helpers";
 
 const PAGE_HTML = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>paths-test</title></head><body><p>hello</p></body></html>`;
 
@@ -19,25 +19,7 @@ test(
     const outDir = await mkdtemp(path.join(tmpdir(), "sitesnap-paths-"));
     try {
       const url = `http://127.0.0.1:${server.port}/`;
-      const ctx: CliContext = {
-        sub: "page",
-        args: [url],
-        json: true,
-        strict: false,
-        agentTask: false,
-        outDir,
-        outDirExplicit: true,
-        shotDir: outDir,
-        outFile: null,
-        captureOptions: { outDir, allowPrivate: true, preScroll: "none" },
-        shotOptions: { vp: null, device: null, selector: null, settleMs: null, full: false, props: null, label: null, clicks: [], evalJs: null },
-        limit: null,
-        exclude: null,
-        minInterval: null,
-        dryRun: false,
-        olderThan: null,
-        shots: false,
-      };
+      const ctx = makeCtx({ sub: "page", args: [url], outDir, captureOptions: { allowPrivate: true, preScroll: "none" } });
       const result = await buildCommands().page!(ctx);
       expect(result.exitCode).toBe(0);
       const data = JSON.parse(result.stdout);

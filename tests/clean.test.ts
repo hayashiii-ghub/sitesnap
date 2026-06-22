@@ -5,28 +5,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseCliArgs, type CliContext } from "../src/cli-args.ts";
 import { buildCommands } from "../src/commands.ts";
+import { makeCtx } from "./helpers";
 
 function ctxFor(outDir: string, over: Partial<CliContext> = {}): CliContext {
-  return {
-    sub: "clean",
-    args: [],
-    json: true,
-    strict: false,
-    agentTask: false,
-    outDir,
-    outDirExplicit: true,
-    shotDir: outDir,
-    outFile: null,
-    captureOptions: { outDir, allowPrivate: false },
-    shotOptions: { vp: null, device: null, selector: null, settleMs: null, full: false, props: null, label: null, clicks: [], evalJs: null },
-    limit: null,
-    exclude: null,
-    minInterval: null,
-    dryRun: false,
-    olderThan: null,
-    shots: false,
-    ...over,
-  };
+  return makeCtx({ sub: "clean", outDir, ...over });
 }
 
 async function makeShots(): Promise<string> {
