@@ -50,3 +50,14 @@ test("parseCliArgs: rejects extra positional arguments per subcommand", () => {
     parseCliArgs(["list", "extra"])
   ).toThrow(/INVALID_OPTION|引数が多すぎます/);
 });
+
+test("parseCliArgs: --min-interval で rateLimiter を一度だけ生成し site/retry が共有する", () => {
+  // 未指定なら undefined (レート制限なし)
+  expect(parseCliArgs(["site", "https://example.com/sitemap.xml"]).rateLimiter).toBeUndefined();
+  expect(parseCliArgs(["retry", "example.com"]).rateLimiter).toBeUndefined();
+  // 指定すると ctx.rateLimiter が生成される。site と retry は同じ ctx.rateLimiter を
+  // 渡すので、retry も --min-interval を尊重する (以前は retry が無視していた)
+  const ctx = parseCliArgs(["retry", "example.com", "--min-interval", "250"]);
+  expect(ctx.minInterval).toBe(250);
+  expect(typeof ctx.rateLimiter?.wait).toBe("function");
+});

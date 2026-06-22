@@ -166,7 +166,7 @@ test("CLI: doctor --agent-task diagnoses a run directory and writes handoff file
 
     expect(code).toBe(0);
     expect(stdout).toContain("1件のスクリーンショットが白紙っぽいです。");
-    expect(stdout).toContain("Suggested retry:");
+    expect(stdout).toContain("推奨リトライ:");
     expect(existsSync(path.join(dir, "diagnosis.md"))).toBe(true);
     expect(existsSync(path.join(dir, "agent-task.md"))).toBe(true);
     expect(existsSync(path.join(dir, "suggested-sitesnap.config.json"))).toBe(true);

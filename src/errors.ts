@@ -18,7 +18,6 @@ export interface ErrorContext {
   url?: string
   domain?: string
   output?: string
-  pattern?: string
   status?: number
   depth?: number
 }

@@ -2,6 +2,7 @@ import path from "node:path"
 import type { CaptureOptions } from "./capture.ts"
 import { DEFAULTS, shotCacheDir } from "./config.ts"
 import { SiteSnapError } from "./errors.ts"
+import { createHostRateLimiter, type HostRateLimiter } from "./rate-limit.ts"
 import { parseViewport, type Viewport } from "./shot.ts"
 
 export const HELP = `
@@ -115,6 +116,10 @@ export interface CliContext {
   limit: number | null
   exclude: RegExp | null
   minInterval: number | null
+  // --min-interval から一度だけ生成する per-host レートリミッタ。
+  // site / retry が共有する (capture 系コマンドのみ使用)。captureOptions には
+  // 入れない: artifactOptions が options.json に JSON 化すると {} に潰れるため。
+  rateLimiter?: HostRateLimiter
   dryRun: boolean
   olderThan: number | null
   shots: boolean
@@ -328,6 +333,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
     limit,
     exclude,
     minInterval,
+    rateLimiter: minInterval ? createHostRateLimiter(minInterval) : undefined,
     dryRun,
     olderThan,
     shots,
