@@ -159,7 +159,6 @@ Artifacts:
 - result.json: ./result.json
 - options.json: ./options.json
 - screenshot paths: see screenshotPath values in ./result.json
-- console logs: ./logs/console.jsonl
 
 Summary:
 - Domain: ${report.domain}
@@ -233,7 +232,6 @@ export async function writeRunArtifacts({
 }: RunArtifactOptions): Promise<string> {
   const runDir = path.join(siteDir, "runs", "latest")
   await mkdir(runDir, { recursive: true })
-  await mkdir(path.join(runDir, "logs"), { recursive: true })
 
   const captures: DoctorCapture[] = results.map((result) => ({
     url: result.url,
@@ -245,6 +243,9 @@ export async function writeRunArtifacts({
     durationMs: result.durationMs,
   }))
 
+  // result.json / options.json は analyzeRunDirectory では使わないフィールド
+  // (source / command / options) も含めて書き出す。これらは doctor --agent-task の
+  // handoff 先 agent 向けの意図的な breadcrumb (buildAgentTaskMarkdown が参照)。
   await writeFile(
     path.join(runDir, "result.json"),
     `${JSON.stringify({ domain, source, command, captures }, null, 2)}\n`

@@ -78,12 +78,9 @@ async function cmdSite(ctx: CliContext): Promise<CommandResult> {
     const result = out(ctx, { urls: 0 }, () => "URLが見つかりませんでした。")
     return { ...result, stderr: logs.join("\n") }
   }
-  const rateLimiter = ctx.minInterval
-    ? (await import("./rate-limit.ts")).createHostRateLimiter(ctx.minInterval)
-    : undefined
   const { domain, siteDir, results } = await captureUrls(urls, {
     ...ctx.captureOptions,
-    rateLimiter,
+    rateLimiter: ctx.rateLimiter,
   })
   const runDir = await writeRunArtifacts({
     domain,
@@ -317,6 +314,7 @@ async function cmdRetry(ctx: CliContext): Promise<CommandResult> {
   const { siteDir, results } = await captureUrls(failedUrls, {
     force: true,
     ...ctx.captureOptions,
+    rateLimiter: ctx.rateLimiter,
   })
   const runDir = await writeRunArtifacts({
     domain,
@@ -382,10 +380,10 @@ async function cmdDoctor(ctx: CliContext): Promise<CommandResult> {
       if (report.timeoutCaptures > 0) lines.push(`${report.timeoutCaptures}件がtimeoutしています。`)
       if (report.httpErrorCaptures > 0) lines.push(`${report.httpErrorCaptures}件がHTTPエラーです。`)
       if (report.suggestedRetry) {
-        lines.push("", "Suggested retry:", report.suggestedRetry)
+        lines.push("", "推奨リトライ:", report.suggestedRetry)
       }
       if (written.length > 0) {
-        lines.push("", "Generated:")
+        lines.push("", "生成ファイル:")
         for (const file of written) lines.push(`- ${path.relative(process.cwd(), file)}`)
       }
       return lines.join("\n")
