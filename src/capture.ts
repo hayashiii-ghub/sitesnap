@@ -55,7 +55,10 @@ export interface CaptureTarget {
 
 export function slugify(url: string): string {
   const u = new URL(url)
-  let p = u.pathname.replace(/^\/+|\/+$/g, "")
+  // file:// は絶対パスがそのまま名前になり激長になるので basename だけ使う。
+  // 別ディレクトリの同名 mock は同じ slug に潰れるが、shots は使い捨て・上書き領域
+  // (site/page には file:// は来ない) なので許容。撮り分けたい時は --label で区別する。
+  let p = u.protocol === "file:" ? path.basename(u.pathname) : u.pathname.replace(/^\/+|\/+$/g, "")
   if (!p) return "index"
   const cleaned = p
     .replace(/[^a-zA-Z0-9._-]+/g, "_")

@@ -50,6 +50,25 @@ test(
 );
 
 test(
+  "captureShot: outFile はその1枚を指定パスへ書き出し親ディレクトリを作る",
+  async () => {
+    const server = serve();
+    const base = await mkdtemp(path.join(tmpdir(), "sitesnap-shot-"));
+    try {
+      const url = `http://127.0.0.1:${server.port}/`;
+      const target = path.join(base, "nested", "dir", "og.png");
+      const r = await captureShot(url, { outFile: target, allowPrivate: true });
+      expect(r.file).toBe(target);
+      expect(existsSync(target)).toBeTrue();
+    } finally {
+      server.stop();
+      await rm(base, { recursive: true, force: true });
+    }
+  },
+  60000
+);
+
+test(
   "captureShot: --selector は要素だけ撮影する",
   async () => {
     const server = serve();
@@ -285,6 +304,8 @@ test(
         strict: false,
         agentTask: false,
         outDir,
+        outDirExplicit: true,
+        outFile: null,
         captureOptions: { outDir, allowPrivate: true },
         shotOptions: { vp: { width: 800, height: 600 }, device: null, selector: null, settleMs: null, full: false, props: null, label: null, clicks: [], evalJs: null },
         limit: null,

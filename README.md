@@ -78,8 +78,8 @@ sitesnap list
 | フラグ | デフォルト | 説明 |
 |---|---|---|
 | `--json` | off | 構造化JSON出力(stdoutにJSON、進捗ログはstderr) |
-| `--force-visible` | off | スクロール連動アニメで隠れた要素を強制表示。**スクショが真っ白な時に使う**(AOS, wow.js 等対策) |
-| `--out <dir>` | `./sites/` | 出力先ディレクトリ。`SITESNAP_OUT` 環境変数でも指定可 |
+| `--force-visible` | off | スクロール連動アニメで隠れた要素を強制表示。**スクショが真っ白な時に使う**(AOS / wow.js / Framer Motion(`motion/react`)の `whileInView` 等対策) |
+| `--out <dir>` | `./sites/`(shotはキャッシュ) | 出力先ディレクトリ。`SITESNAP_OUT` 環境変数でも指定可。`shot` は未指定なら cwd ではなく OS キャッシュに出す(後述) |
 | `--limit <N>` | off | 最初の N 件のURLだけキャプチャ(`--exclude` 適用後の順序) |
 | `--exclude <regex>` | off | この正規表現にマッチするURLをスキップ(例: `'\?utm_'`) |
 | `--concurrency <N>` | 3 | 並列ワーカー数を上書き |
@@ -111,6 +111,7 @@ CSSラジオのタブ切替や `<details>` の開閉など、撮影前にDOM状�
 | `--eval <js>` | off | 撮影前に任意JSを実行(clickで書けない状態の逃げ道。基本は `--click`) |
 | `--label <name>` | off | 出力ファイル名に付ける状態ラベル。**状態違いを撮り分ける際は必須**(未指定だと同名で上書き) |
 | `--allow-file` | off | `file://` のローカルHTMLを直撮りする(shotのみ。サーバ不要) |
+| `-o, --out-file <path>` | off | 撮った1枚を**このパスへ直接**書き出す(shotのみ)。親ディレクトリは自動作成、`--json` の `file` もこのパスを返す。`--out` とは併用不可 |
 
 ```bash
 # CSS ラジオタブの状態を撮り分け(--label で別ファイルに)
@@ -118,9 +119,13 @@ sitesnap shot http://localhost:3000/ --allow-private --click ".tab-user"  --labe
 sitesnap shot http://localhost:3000/ --allow-private --click ".tab-admin" --label admin --json
 # ローカルの静的HTMLモックをサーバ無しで直撮り
 sitesnap shot file:///abs/path/mock.html --allow-file --click "summary" --label open --json
+# 撮った1枚を別プロジェクトの public/ へ直接配置(cp 不要・1コマンド完結)
+sitesnap shot file:///abs/path/mock.html --allow-file --full -o ../my-app/public/og.png --json
+# Framer Motion (motion/react) の whileInView で fade-up する SPA をフルページで安定撮影
+sitesnap shot http://localhost:3000/ --allow-private --full --pre-scroll full-page --force-visible --settle 800 --json
 ```
 
-`shot` はアーカイブ用の `site`/`page` と違い、meta.json を更新せず `sites/<host>/shots/` に上書き保存します。localhost はポートごとにフォルダが分かれます(例: `localhost_3000/`)。`file://` は `_file/` フォルダにまとまります。
+`shot` はアーカイブ用の `site`/`page` と違い「使い捨て」用途なので、`--out` / `--out-file` を**明示しない限り cwd を汚しません**。既定の保存先は OS のキャッシュ(`$XDG_CACHE_HOME/sitesnap`、無ければ `~/.cache/sitesnap`)で、その下に `<host>/shots/`(localhost はポートごと、例 `localhost_3000/`、`file://` は `_file/`)として上書き保存します。`--out <dir>` を渡せば従来どおりそのディレクトリ配下に、`-o <path>` を渡せばそのパスへ1枚だけ書き出します。`file://` のファイル名は絶対パスではなく basename ベースです。`site`/`page` のアーカイブは従来どおり `./sites/` のままです。
 
 ### shot の棚卸しと掃除
 

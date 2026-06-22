@@ -22,10 +22,13 @@ sitesnap — ウェブサイトのスクリーンショットを一括キャプ�
   sitesnap --version               バージョン番号を表示
 
 グローバルフラグ:
+  -h, --help                            ヘルプを表示（サブコマンドの後ろでも可）
   --json                                JSON形式でstdout出力（進捗はstderr）
   --force-visible                       スクロール連動アニメで隠れた要素を強制表示
-                                        (AOS, wow.js 等対策。スクショが真っ白な時に使用)
-  --out <dir>                           出力先ディレクトリ（デフォルト: ./sites/）
+                                        (AOS / wow.js / Framer Motion(motion/react) の
+                                         whileInView 等対策。スクショが真っ白な時に使用)
+  --out <dir>                           出力先ディレクトリ（site/page のデフォルト: ./sites/）
+                                        shot は未指定なら OS キャッシュに出す（cwd を汚さない）
                                         SITESNAP_OUT 環境変数でも指定可
   --limit <N>                           最初の N 件のURLのみキャプチャ（--exclude適用後）
   --exclude <regex>                     この正規表現にマッチするURLをスキップ
@@ -50,6 +53,9 @@ shot の撮影前インタラクション / 状態指定:
   --eval <js>                           撮影前に任意JSを実行（clickで書けない状態の逃げ道）
   --label <name>                        出力ファイル名に付ける状態ラベル（状態違いの撮り分け）
   --allow-file                          file:// のローカルHTMLを直撮りする（shotのみ）
+  -o, --out-file <path>                 撮った1枚を指定パスへ直接書き出す（shotのみ）
+                                        親ディレクトリは自動作成。--json の file もこのパスを返す
+                                        （--out とは併用不可）
 
 list / clean 用フラグ:
   --shots                               list で shot (sites/<host>/shots/) をホスト別に列挙
@@ -62,6 +68,8 @@ list / clean 用フラグ:
   sitesnap shot https://example.com/ --device "iPhone 13" --settle 1500 --json
   sitesnap shot http://localhost:3000/ --allow-private --click ".tab-user" --label user --json
   sitesnap shot file:///tmp/mock.html --allow-file --click "summary" --label open --json
+  sitesnap shot file:///tmp/mock.html --allow-file --full -o ./public/og.png --json
+  sitesnap shot http://localhost:3000/ --allow-private --full --pre-scroll full-page --force-visible --settle 800 --json
   sitesnap list --shots --json
   sitesnap clean --older-than 7 --dry-run --json
   sitesnap clean localhost_3000
@@ -93,6 +101,10 @@ export interface CliContext {
   strict: boolean
   agentTask: boolean
   outDir: string
+  // --out もしくは SITESNAP_OUT が明示されたか。shot は未指定ならキャッシュへ出す
+  outDirExplicit: boolean
+  // shot で撮った1枚をこのパスへ直接書き出す (--out-file)。未指定は null
+  outFile: string | null
   captureOptions: CaptureOptions
   shotOptions: ShotCliOptions
   limit: number | null
@@ -173,7 +185,10 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
   const dryRun = argv.includes("--dry-run")
   const shots = argv.includes("--shots")
 
+  const envOutGiven = Boolean(env.SITESNAP_OUT)
   let outDir = env.SITESNAP_OUT || DEFAULTS.sitesDir
+  let outFlagGiven = false
+  let outFile: string | null = null
   let limit: number | null = null
   let exclude: RegExp | null = null
   let concurrency: number | null = null
@@ -203,6 +218,8 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
   ])
   const valueFlags = new Set([
     "--out",
+    "--out-file",
+    "-o",
     "--limit",
     "--exclude",
     "--concurrency",
@@ -228,7 +245,10 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
       if (v === undefined) {
         throw invalidOption(`${a} に値が指定されていません`, `${a} <value> の形式で指定してください。`)
       }
-      if (a === "--out") outDir = v
+      if (a === "--out") {
+        outDir = v
+        outFlagGiven = true
+      } else if (a === "--out-file" || a === "-o") outFile = v
       else if (a === "--limit") limit = parsePositiveInteger(v, a)
       else if (a === "--exclude") {
         try {
@@ -261,7 +281,15 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
     args.push(a)
   }
   outDir = path.resolve(outDir)
+  if (outFile !== null) outFile = path.resolve(outFile)
   validatePositionalArity(sub, args)
+
+  if (outFile !== null && sub !== "shot") {
+    throw invalidOption("--out-file は shot コマンドでのみ使用できます", "単一ファイル出力は sitesnap shot で指定してください。")
+  }
+  if (outFile !== null && outFlagGiven) {
+    throw invalidOption("--out と --out-file は同時に指定できません", "出力先ディレクトリか出力ファイルのどちらか一方で指定してください。")
+  }
 
   if (vp && device) {
     throw invalidOption("--vp と --device は同時に指定できません", "ビューポートはどちらか一方で指定してください。")
@@ -277,6 +305,8 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
     strict,
     agentTask,
     outDir,
+    outDirExplicit: outFlagGiven || envOutGiven,
+    outFile,
     captureOptions: {
       forceVisible,
       outDir,

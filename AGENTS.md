@@ -46,7 +46,7 @@ sitesnap site https://example.com/sitemap.xml \
 ```
 
 - Use `--out <dir>` when captures should be written outside `./sites/`.
-- Use `--force-visible` when screenshots are blank because content is hidden by scroll-reveal animations.
+- Use `--force-visible` when screenshots are blank because content is hidden by scroll-reveal animations (AOS, wow.js, Framer Motion `motion/react` `whileInView`).
 - Use `--limit <N>` during exploration before capturing a large sitemap.
 - Use `--exclude <regex>` to skip tracking URLs or irrelevant page groups.
 - Use `--wait-ms <ms>` and `--pre-scroll <full-page|none>` when a retry needs different screenshot timing.
@@ -62,12 +62,15 @@ sitesnap shot http://localhost:3000/ --selector "footer" --allow-private --json 
 sitesnap shot https://example.com/ --device "iPhone 13" --json            # device emulation
 sitesnap shot https://example.com/ --settle 1500 --json                   # wait for entrance animations, no freezing
 sitesnap shot https://example.com/ --full --json                          # classic full-page
+sitesnap shot file:///abs/mock.html --allow-file --full -o public/og.png --json   # write one file to an exact path
 ```
 
 - `--vp <WxH>` sets the viewport (default 1440x900); mutually exclusive with `--device`.
 - `--selector` and `--full` are mutually exclusive.
 - By default animations are frozen (same as `page`); `--settle <ms>` disables freezing and waits instead — use it to capture the final state after entrance animations.
-- Output goes to `sites/<host>/shots/` and is overwritten on each run; localhost is split per port (`localhost_3000/`).
+- **To place a shot at a specific path, use `-o, --out-file <path>`** instead of capturing then `cp`. It writes that one file (creating parent dirs), and `file` in the JSON output is that exact path. Mutually exclusive with `--out`.
+- Without `--out` / `--out-file`, `shot` writes to an OS cache dir (`$XDG_CACHE_HOME/sitesnap`, else `~/.cache/sitesnap`), **not** cwd — so running it inside an unrelated repo does not create a stray `sites/`. Pass `--out <dir>` to keep them under a project dir; localhost is split per port (`localhost_3000/`), `file://` under `_file/`.
+- `file://` shot filenames are basename-based, not the full absolute path.
 - Read `file` from the JSON output — it is the absolute path to the PNG.
 
 ### Pre-shot interaction / state setup

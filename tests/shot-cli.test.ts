@@ -1,4 +1,5 @@
 import { test, expect } from "bun:test";
+import path from "node:path";
 import { parseCliArgs } from "../src/cli-args.ts";
 
 test("parseCliArgs: shot の --vp / --settle をパースする", () => {
@@ -72,4 +73,31 @@ test("parseCliArgs: --vp の不正値は INVALID_OPTION", () => {
 
 test("parseCliArgs: shot は位置引数 1 個まで", () => {
   expect(() => parseCliArgs(["shot", "https://example.com/", "extra"])).toThrow(/引数が多すぎます/);
+});
+
+test("parseCliArgs: --out-file / -o をパースし絶対パスに解決する", () => {
+  const long = parseCliArgs(["shot", "https://example.com/", "--out-file", "out/og.png"]);
+  expect(long.outFile).toBe(path.resolve("out/og.png"));
+  const short = parseCliArgs(["shot", "https://example.com/", "-o", "out/og.png"]);
+  expect(short.outFile).toBe(path.resolve("out/og.png"));
+});
+
+test("parseCliArgs: --out-file 未指定は null", () => {
+  expect(parseCliArgs(["shot", "https://example.com/"]).outFile).toBeNull();
+});
+
+test("parseCliArgs: --out-file は shot 以外では拒否する", () => {
+  expect(() => parseCliArgs(["page", "https://example.com/", "-o", "x.png"])).toThrow(/shot コマンドでのみ/);
+});
+
+test("parseCliArgs: --out と --out-file の併用は拒否する", () => {
+  expect(() =>
+    parseCliArgs(["shot", "https://example.com/", "--out", "sites", "-o", "x.png"])
+  ).toThrow(/--out と --out-file/);
+});
+
+test("parseCliArgs: outDirExplicit は --out / SITESNAP_OUT 明示時のみ true", () => {
+  expect(parseCliArgs(["shot", "https://example.com/"]).outDirExplicit).toBeFalse();
+  expect(parseCliArgs(["shot", "https://example.com/", "--out", "sites"]).outDirExplicit).toBeTrue();
+  expect(parseCliArgs(["shot", "https://example.com/"], { SITESNAP_OUT: "/tmp/x" } as NodeJS.ProcessEnv).outDirExplicit).toBeTrue();
 });

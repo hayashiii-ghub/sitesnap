@@ -86,3 +86,12 @@ test("shotFileFor: --label は記号をサニタイズする", () => {
     "index--1440x900--state_open.png"
   );
 });
+
+test("shotFileFor: file:// は絶対パスではなく basename ベースの短い名前になる", () => {
+  expect(
+    shotFileFor("file:///Users/home/Desktop/discord-kintai/design/dashboard-mockup.html", {
+      full: true,
+      label: "home-full",
+    })
+  ).toBe("dashboard-mockup.html--1440x900--full--home-full.png");
+});
