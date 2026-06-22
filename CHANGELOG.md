@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-06-22
+
 ### Fixed
 - **`retry` now honors `--min-interval`.** Only `site` applied the per-host rate limiter; `retry` silently ignored the flag and re-fetched failed pages with no spacing. Both commands now share the limiter resolved once in argument parsing.
 
