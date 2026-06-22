@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-06-22
+
+### Added
+- **`shot -o, --out-file <path>`**: write the single screenshot directly to an exact path (parent directories are created), and `--json` returns that path as `file`. An agent's "capture and place it here" is now one command instead of capture → read JSON → `cp`. Mutually exclusive with `--out`; `shot` only.
+- **`--help` / `-h` after a subcommand**: `sitesnap shot --help` (and any other subcommand) now prints help and exits 0 instead of failing as an unknown option.
+
+### Changed
+- **`shot` no longer writes into the current directory by default.** Without `--out` / `--out-file` / `SITESNAP_OUT`, shots now go to an OS cache directory (`$XDG_CACHE_HOME/sitesnap`, else `~/.cache/sitesnap`) instead of `./sites/`, so running `shot` inside an unrelated git repo no longer creates a stray, un-gitignored `sites/`. The `site`/`page` archives are unchanged (still `./sites/`); pass `--out <dir>` to restore the previous shot location.
+- `file://` shot filenames are now basename-based instead of encoding the full absolute path (e.g. `dashboard-mockup.html--1440x900--full.png` rather than `Users_home_..._dashboard-mockup.html--...`).
+- Documented that `--force-visible` also fixes Framer Motion (`motion/react`) `whileInView` reveals, with a `--pre-scroll full-page --force-visible --settle <ms>` recipe in the README/AGENTS docs.
+
 ## [0.6.1] - 2026-06-18
 
 ### Changed
