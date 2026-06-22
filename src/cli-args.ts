@@ -1,6 +1,6 @@
 import path from "node:path"
 import type { CaptureOptions } from "./capture.ts"
-import { DEFAULTS } from "./config.ts"
+import { DEFAULTS, shotCacheDir } from "./config.ts"
 import { SiteSnapError } from "./errors.ts"
 import { parseViewport, type Viewport } from "./shot.ts"
 
@@ -30,7 +30,8 @@ sitesnap — ウェブサイトのスクリーンショットを一括キャプ�
   --out <dir>                           出力先ディレクトリ（site/page のデフォルト: ./sites/）
                                         shot は未指定なら OS キャッシュに出す（cwd を汚さない）
                                         SITESNAP_OUT 環境変数でも指定可
-  --limit <N>                           最初の N 件のURLのみキャプチャ（--exclude適用後）
+  --limit <N>                           site: 最初の N 件のURLのみキャプチャ（--exclude適用後）
+                                        inspect: 一致要素を N 件まで取得（デフォルト 10）
   --exclude <regex>                     この正規表現にマッチするURLをスキップ
   --concurrency <N>                     並列ワーカー数を上書き（デフォルト 3）
   --wait-ms <ms>                        スクリーンショット前に追加で待機
@@ -58,7 +59,7 @@ shot の撮影前インタラクション / 状態指定:
                                         （--out とは併用不可）
 
 list / clean 用フラグ:
-  --shots                               list で shot (sites/<host>/shots/) をホスト別に列挙
+  --shots                               list で shot をホスト別に列挙 (既定はキャッシュ領域。--out で project 配下に変更可)
   --older-than <days>                   clean で指定日数より古い shot だけ削除
   --dry-run                             clean で削除せず対象だけ表示
 
@@ -103,6 +104,10 @@ export interface CliContext {
   outDir: string
   // --out もしくは SITESNAP_OUT が明示されたか。shot は未指定ならキャッシュへ出す
   outDirExplicit: boolean
+  // shot / list --shots / clean が共有する shot の保存先。
+  // --out / SITESNAP_OUT 明示時は outDir、未指定なら OS キャッシュ。
+  // (site/page のアーカイブ outDir とは別。撮影・列挙・掃除はここで一致させる)
+  shotDir: string
   // shot で撮った1枚をこのパスへ直接書き出す (--out-file)。未指定は null
   outFile: string | null
   captureOptions: CaptureOptions
@@ -282,6 +287,8 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
   }
   outDir = path.resolve(outDir)
   if (outFile !== null) outFile = path.resolve(outFile)
+  const outDirExplicit = outFlagGiven || envOutGiven
+  const shotDir = outDirExplicit ? outDir : shotCacheDir(env)
   validatePositionalArity(sub, args)
 
   if (outFile !== null && sub !== "shot") {
@@ -305,7 +312,8 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
     strict,
     agentTask,
     outDir,
-    outDirExplicit: outFlagGiven || envOutGiven,
+    outDirExplicit,
+    shotDir,
     outFile,
     captureOptions: {
       forceVisible,

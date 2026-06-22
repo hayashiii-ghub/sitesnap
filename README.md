@@ -80,7 +80,7 @@ sitesnap list
 | `--json` | off | 構造化JSON出力(stdoutにJSON、進捗ログはstderr) |
 | `--force-visible` | off | スクロール連動アニメで隠れた要素を強制表示。**スクショが真っ白な時に使う**(AOS / wow.js / Framer Motion(`motion/react`)の `whileInView` 等対策) |
 | `--out <dir>` | `./sites/`(shotはキャッシュ) | 出力先ディレクトリ。`SITESNAP_OUT` 環境変数でも指定可。`shot` は未指定なら cwd ではなく OS キャッシュに出す(後述) |
-| `--limit <N>` | off | 最初の N 件のURLだけキャプチャ(`--exclude` 適用後の順序) |
+| `--limit <N>` | off | site: 最初の N 件のURLだけキャプチャ(`--exclude` 適用後の順序) / inspect: 一致要素を N 件まで取得(既定 10) |
 | `--exclude <regex>` | off | この正規表現にマッチするURLをスキップ(例: `'\?utm_'`) |
 | `--concurrency <N>` | 3 | 並列ワーカー数を上書き |
 | `--wait-ms <ms>` | off | スクリーンショット前に追加で待機 |
@@ -175,12 +175,13 @@ sitesnap site https://example.com/sitemap.xml --force-visible --out ~/captures
 {
   "success": true,
   "url": "http://localhost:3000/",
-  "file": "/abs/sites/localhost_3000/shots/index--1440x900--sel-footer.png",
+  "file": "/abs/.cache/sitesnap/localhost_3000/shots/index--1440x900--sel-footer.png",
   "viewport": { "width": 1440, "height": 900 },
   "device": null,
   "selector": "footer",
   "full": false,
   "settle_ms": null,
+  "created_at": "2026-06-22T12:00:00.000Z",
   "title": "Example",
   "http_status": 200,
   "duration_ms": 1234

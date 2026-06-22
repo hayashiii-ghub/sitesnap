@@ -21,9 +21,11 @@ sitesnap page <url>                   # Capture single page
 sitesnap shot <url>                   # One-off dev-loop screenshot
 sitesnap inspect <url>                # Element style/box/text/overflow as JSON
 sitesnap check <url>                  # Pass/fail: overflow, console errors, failed requests, a11y
-sitesnap list                         # List captured sites
+sitesnap list                         # List captured sites (--shots to list shots)
+sitesnap clean [host]                 # Delete accumulated shots (archives untouched)
 sitesnap open <domain>                # Open site folder in Finder
 sitesnap retry <domain>               # Retry failed pages
+sitesnap doctor <run-dir>             # Diagnose a capture run, suggest a retry
 sitesnap help                         # Help
 sitesnap --version                    # Version
 ```
@@ -166,7 +168,8 @@ sitesnap doctor sites/example.com/runs/latest --agent-task --json
   "desktop_path": "/abs/sites/example.com/desktop/index.png",
   "mobile_path": "/abs/sites/example.com/mobile/index.png",
   "errors": [],
-  "out_dir": "/abs/sites"
+  "out_dir": "/abs/sites",
+  "run_dir": "/abs/sites/example.com/runs/latest"
 }
 ```
 
@@ -179,7 +182,8 @@ sitesnap doctor sites/example.com/runs/latest --agent-task --json
   "pages": 10,
   "captured_pages": 9,
   "errors": [{"url": "...", "mode": "desktop", "error": "..."}],
-  "out_dir": "/abs/sites"
+  "out_dir": "/abs/sites",
+  "run_dir": "/abs/sites/example.com/runs/latest"
 }
 ```
 
@@ -207,11 +211,9 @@ sitesnap doctor sites/example.com/runs/latest --agent-task --json
 | `SITEMAP_PARSE_FAILED` | Verify sitemap XML syntax |
 | `SITEMAP_TOO_DEEP` | Adjust `maxDepth` or check recursive sitemaps |
 | `BROWSER_LAUNCH_FAILED` | Run `bunx playwright install chromium` |
-| `PAGE_LOAD_FAILED` | Check site availability or simplify HTML |
-| `SCREENSHOT_FAILED` | Check disk space or output dir permissions |
-| `OUTPUT_DIR_NOT_WRITABLE` | Verify directory permissions |
 | `DOMAIN_NOT_FOUND` | Run `sitesnap list` to see captured domains |
 | `META_NOT_FOUND` | Re-run capture for the domain |
+| `RUN_DIR_NOT_FOUND` | Pass the `runs/latest` dir printed by site/page/retry |
 
 ## Common tasks
 
@@ -243,7 +245,7 @@ sitesnap doctor sites/example.com/runs/latest --agent-task --json
 ## Best practices for AI agents
 
 - **Always use `--json`** for parseable output
-- **Default output dir**: `./sites/<domain>/` — use `--out` to override and report absolute paths back to the user
+- **Default output dir**: `site`/`page` archives go to `./sites/<domain>/`; `shot` writes to an OS cache dir (`$XDG_CACHE_HOME/sitesnap`, else `~/.cache/sitesnap`) unless you pass `--out <dir>` / `SITESNAP_OUT` (or `-o <path>` for a single shot). Report absolute paths back to the user.
 - **For sites with lazy-loaded content**: try `--force-visible`
 - **For private/local URLs**: use `--allow-private`
 - **On `BROWSER_LAUNCH_FAILED`**: suggest `bunx playwright install chromium`

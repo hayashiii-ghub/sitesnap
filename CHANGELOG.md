@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`list --shots` and `clean` now look where `shot` actually writes.** Since 0.6.2 `shot` defaults to the OS cache dir, but `list --shots` / `clean` still scanned `./sites/`, so by default the documented capture → `list --shots` → `clean` housekeeping loop silently found nothing. All three now share one resolved shot directory (cache by default, or `--out` / `SITESNAP_OUT` when set).
+
+### Changed
+- **Command failures now emit the structured error envelope.** Missing arguments and the `open` / `retry` / `doctor` not-found cases previously printed a bare line to stderr; they now flow through the same `{ success: false, error: { code, ... } }` path as other errors, so `--json` consumers get a parseable result (`INVALID_OPTION`, `DOMAIN_NOT_FOUND`, `META_NOT_FOUND`, `RUN_DIR_NOT_FOUND`).
+- `list --json` output is now compact (single line), matching every other command (was pretty-printed).
+
+### Removed
+- Dropped three `ErrorCode`s that were never thrown (`PAGE_LOAD_FAILED`, `SCREENSHOT_FAILED`, `OUTPUT_DIR_NOT_WRITABLE`) and removed them from the agent-facing error tables; per-page capture failures are reported in the success envelope's `errors[]`, not thrown.
+
+### Docs
+- Finished the 0.6.2 shot-cache story across `README` / `README.en` / `AGENTS.md` / `SKILL.md` and `--help` (shot default location, `-o/--out-file`), and filled doc gaps (`run_dir`, `created_at`, `--limit`'s inspect meaning, `clean`/`doctor` in the quick reference).
+
 ## [0.6.2] - 2026-06-22
 
 ### Added

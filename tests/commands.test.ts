@@ -12,6 +12,7 @@ function baseCtx(overrides: Partial<CliContext> = {}): CliContext {
     agentTask: false,
     outDir: "/tmp/sitesnap-command-test-missing",
     outDirExplicit: true,
+    shotDir: "/tmp/sitesnap-command-test-missing",
     outFile: null,
     captureOptions: {
       outDir: "/tmp/sitesnap-command-test-missing",
@@ -32,7 +33,7 @@ function baseCtx(overrides: Partial<CliContext> = {}): CliContext {
 test("command handlers return CommandResult instead of writing directly to process state", async () => {
   const result = await buildCommands().list(baseCtx());
   expect(result.exitCode).toBe(0);
-  expect(result.stdout).toBe(JSON.stringify({ success: true, sites: [] }, null, 2));
+  expect(result.stdout).toBe(JSON.stringify({ success: true, sites: [] }));
   expect(result.stderr).toBe("");
 });
 

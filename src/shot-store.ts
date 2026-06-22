@@ -2,7 +2,8 @@ import { existsSync } from "node:fs"
 import { readdir, rm, stat } from "node:fs/promises"
 import path from "node:path"
 
-// shot は sites/<host>/shots/ に保存され meta.json を持たない使い捨て領域。
+// shot は <出力先>/<host>/shots/ に保存され meta.json を持たない使い捨て領域。
+// 出力先は既定で OS キャッシュ (--out 明示時はその project 配下)。
 // このモジュールはその shots/ の列挙と掃除だけを担い、アーカイブ
 // (desktop/ mobile/ meta.json) には一切触れない。
 

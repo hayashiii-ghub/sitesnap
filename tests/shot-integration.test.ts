@@ -305,6 +305,7 @@ test(
         agentTask: false,
         outDir,
         outDirExplicit: true,
+        shotDir: outDir,
         outFile: null,
         captureOptions: { outDir, allowPrivate: true },
         shotOptions: { vp: { width: 800, height: 600 }, device: null, selector: null, settleMs: null, full: false, props: null, label: null, clicks: [], evalJs: null },
@@ -327,6 +328,97 @@ test(
     } finally {
       server.stop();
       await rm(outDir, { recursive: true, force: true });
+    }
+  },
+  60000
+);
+
+test(
+  "shot → list --shots → clean は shotDir 上で一貫する (outDir とは独立。v0.6.2 回帰ガード)",
+  async () => {
+    const server = serve();
+    // shotDir = キャッシュ相当の保存先 / outDir = ./sites アーカイブ相当 (空のまま)
+    const shotDir = await mkdtemp(path.join(tmpdir(), "sitesnap-shotdir-"));
+    const outDir = await mkdtemp(path.join(tmpdir(), "sitesnap-archive-"));
+    try {
+      const url = `http://127.0.0.1:${server.port}/`;
+      const base: CliContext = {
+        sub: "shot",
+        args: [url],
+        json: true,
+        strict: false,
+        agentTask: false,
+        outDir,
+        outDirExplicit: false,
+        shotDir,
+        outFile: null,
+        captureOptions: { outDir, allowPrivate: true },
+        shotOptions: { vp: null, device: null, selector: null, settleMs: null, full: false, props: null, label: null, clicks: [], evalJs: null },
+        limit: null,
+        exclude: null,
+        minInterval: null,
+        dryRun: false,
+        olderThan: null,
+        shots: false,
+      };
+
+      // shot は shotDir に出る (outDir/./sites ではない)
+      const shot = JSON.parse((await buildCommands().shot!(base)).stdout);
+      expect(shot.file.startsWith(shotDir)).toBeTrue();
+      expect(shot.file.startsWith(outDir)).toBeFalse();
+
+      // list --shots は shotDir を見て、撮ったばかりの shot を列挙する
+      const listed = JSON.parse((await buildCommands().list!({ ...base, sub: "list", shots: true })).stdout);
+      const hosts = (listed.shots as { host: string }[]).map((s) => s.host);
+      expect(hosts).toContain(`127.0.0.1_${server.port}`);
+
+      // clean も shotDir を見て、その shot を実際に削除する
+      const cleaned = JSON.parse((await buildCommands().clean!({ ...base, sub: "clean", args: [] })).stdout);
+      expect(cleaned.removed_files).toBeGreaterThan(0);
+      expect(existsSync(shot.file)).toBeFalse();
+    } finally {
+      server.stop();
+      await rm(shotDir, { recursive: true, force: true });
+      await rm(outDir, { recursive: true, force: true });
+    }
+  },
+  60000
+);
+
+test(
+  "shot --out-file は cmdShot 経由でも指定パスに出し --json の file に返す",
+  async () => {
+    const server = serve();
+    const base = await mkdtemp(path.join(tmpdir(), "sitesnap-outfile-"));
+    try {
+      const url = `http://127.0.0.1:${server.port}/`;
+      const target = path.join(base, "exact", "place", "og.png");
+      const ctx: CliContext = {
+        sub: "shot",
+        args: [url],
+        json: true,
+        strict: false,
+        agentTask: false,
+        outDir: base,
+        outDirExplicit: false,
+        shotDir: path.join(base, "cache"),
+        outFile: target,
+        captureOptions: { outDir: base, allowPrivate: true },
+        shotOptions: { vp: null, device: null, selector: null, settleMs: null, full: false, props: null, label: null, clicks: [], evalJs: null },
+        limit: null,
+        exclude: null,
+        minInterval: null,
+        dryRun: false,
+        olderThan: null,
+        shots: false,
+      };
+      const data = JSON.parse((await buildCommands().shot!(ctx)).stdout);
+      expect(data.success).toBeTrue();
+      expect(data.file).toBe(target);
+      expect(existsSync(target)).toBeTrue();
+    } finally {
+      server.stop();
+      await rm(base, { recursive: true, force: true });
     }
   },
   60000

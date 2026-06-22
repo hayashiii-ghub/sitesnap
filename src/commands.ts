@@ -5,6 +5,7 @@ import path from "node:path"
 import { captureUrls } from "./capture.ts"
 import { checkUrl } from "./check.ts"
 import type { CliContext } from "./cli-args.ts"
+import { SiteSnapError } from "./errors.ts"
 import { analyzeRunDirectory, writeDoctorFiles, writeRunArtifacts } from "./doctor.ts"
 import { buildIndex, buildSiteMeta, type SiteMeta } from "./meta.ts"
 import { inspectUrl } from "./inspect.ts"
@@ -46,8 +47,10 @@ function ok(stdout = "", stderr = ""): CommandResult {
   return { exitCode: 0, stdout, stderr }
 }
 
-function fail(stderr: string): CommandResult {
-  return { exitCode: 1, stdout: "", stderr }
+// 引数不足は INVALID_OPTION として投げ、cli.ts 側で他のエラーと同じ
+// {success:false,error:{...}} envelope (--json) / [CODE] message 形式に揃える。
+function missingArg(usage: string): SiteSnapError {
+  return new SiteSnapError("INVALID_OPTION", "引数が不足しています", `使い方: sitesnap ${usage}`)
 }
 
 function withExitCode(result: CommandResult, exitCode: number): CommandResult {
@@ -57,7 +60,7 @@ function withExitCode(result: CommandResult, exitCode: number): CommandResult {
 async function cmdSite(ctx: CliContext): Promise<CommandResult> {
   const sitemapUrl = ctx.args[0]
   if (!sitemapUrl) {
-    return fail("使い方: sitesnap site <sitemap-url>")
+    throw missingArg("site <sitemap-url>")
   }
   const logs = [`sitemapを展開中: ${sitemapUrl}`]
   let urls = await expandSitemap(sitemapUrl, { allowPrivate: ctx.captureOptions.allowPrivate })
@@ -118,7 +121,7 @@ async function cmdSite(ctx: CliContext): Promise<CommandResult> {
 async function cmdPage(ctx: CliContext): Promise<CommandResult> {
   const url = ctx.args[0]
   if (!url) {
-    return fail("使い方: sitesnap page <url>")
+    throw missingArg("page <url>")
   }
   const { domain, siteDir, results } = await captureUrls([url], {
     ...ctx.captureOptions,
@@ -162,13 +165,13 @@ async function cmdPage(ctx: CliContext): Promise<CommandResult> {
 async function cmdShot(ctx: CliContext): Promise<CommandResult> {
   const url = ctx.args[0]
   if (!url) {
-    return fail("使い方: sitesnap shot <url>")
+    throw missingArg("shot <url>")
   }
   const shot = await captureShot(url, {
     ...ctx.shotOptions,
-    // --out / SITESNAP_OUT が明示された時だけ outDir を渡す。
-    // 未指定なら captureShot 側でキャッシュに出す (cwd を汚さない)。
-    outDir: ctx.outDirExplicit ? ctx.outDir : undefined,
+    // shotDir は cli-args で解決済み (--out 明示なら outDir、未指定なら OS キャッシュ)。
+    // list --shots / clean も同じ shotDir を見るので撮影・列挙・掃除が一致する。
+    outDir: ctx.shotDir,
     outFile: ctx.outFile,
     allowPrivate: ctx.captureOptions.allowPrivate,
     allowFile: ctx.captureOptions.allowFile,
@@ -184,7 +187,7 @@ async function cmdShot(ctx: CliContext): Promise<CommandResult> {
 async function cmdInspect(ctx: CliContext): Promise<CommandResult> {
   const url = ctx.args[0]
   if (!url) {
-    return fail("使い方: sitesnap inspect <url> --selector <css>")
+    throw missingArg("inspect <url> --selector <css>")
   }
   const report = await inspectUrl(url, {
     vp: ctx.shotOptions.vp,
@@ -213,7 +216,7 @@ async function cmdInspect(ctx: CliContext): Promise<CommandResult> {
 async function cmdCheck(ctx: CliContext): Promise<CommandResult> {
   const url = ctx.args[0]
   if (!url) {
-    return fail("使い方: sitesnap check <url>")
+    throw missingArg("check <url>")
   }
   const report = await checkUrl(url, {
     vp: ctx.shotOptions.vp,
@@ -242,44 +245,43 @@ async function cmdCheck(ctx: CliContext): Promise<CommandResult> {
 
 async function cmdList(ctx: CliContext): Promise<CommandResult> {
   if (ctx.shots) {
-    const shots = await listShots(ctx.outDir)
-    if (ctx.json) {
-      return ok(JSON.stringify({ success: true, shots }, null, 2))
-    }
-    if (shots.length === 0) {
-      return ok(`shot はまだありません (確認先: ${ctx.outDir})。`)
-    }
-    const lines = [`shot 一覧 (${ctx.outDir}):`, ""]
-    for (const s of shots) {
-      const date = s.latest_mtime?.slice(0, 10) || "?"
-      lines.push(`  ${s.host.padEnd(30)} ${String(s.files).padStart(4)} 枚   ${formatBytes(s.bytes).padStart(9)}   ${date}`)
-    }
-    lines.push("", "古い shot は sitesnap clean で削除できます (まず --dry-run)。")
-    return ok(lines.join("\n"))
+    const shots = await listShots(ctx.shotDir)
+    return out(ctx, { shots }, () => {
+      if (shots.length === 0) return `shot はまだありません (確認先: ${ctx.shotDir})。`
+      const lines = [`shot 一覧 (${ctx.shotDir}):`, ""]
+      for (const s of shots) {
+        const date = s.latest_mtime?.slice(0, 10) || "?"
+        lines.push(`  ${s.host.padEnd(30)} ${String(s.files).padStart(4)} 枚   ${formatBytes(s.bytes).padStart(9)}   ${date}`)
+      }
+      lines.push("", "古い shot は sitesnap clean で削除できます (まず --dry-run)。")
+      return lines.join("\n")
+    })
   }
   const sites = await buildIndex(ctx.outDir)
-  if (ctx.json) {
-    return ok(JSON.stringify({ success: true, sites }, null, 2))
-  }
-  if (sites.length === 0) {
-    return ok(`まだキャプチャ済みサイトはありません (確認先: ${ctx.outDir})。`)
-  }
-  const lines = [`キャプチャ済みサイト一覧 (${ctx.outDir}):`, ""]
-  for (const s of sites) {
-    const date = s.captured_at?.slice(0, 10) || "?"
-    lines.push(`  ${s.domain.padEnd(30)} ${s.captured_pages}/${s.pages} ページ   ${date}`)
-  }
-  return ok(lines.join("\n"))
+  return out(ctx, { sites }, () => {
+    if (sites.length === 0) return `まだキャプチャ済みサイトはありません (確認先: ${ctx.outDir})。`
+    const lines = [`キャプチャ済みサイト一覧 (${ctx.outDir}):`, ""]
+    for (const s of sites) {
+      const date = s.captured_at?.slice(0, 10) || "?"
+      lines.push(`  ${s.domain.padEnd(30)} ${s.captured_pages}/${s.pages} ページ   ${date}`)
+    }
+    return lines.join("\n")
+  })
 }
 
 async function cmdOpen(ctx: CliContext): Promise<CommandResult> {
   const domain = ctx.args[0]
   if (!domain) {
-    return fail("使い方: sitesnap open <domain>")
+    throw missingArg("open <domain>")
   }
   const dir = path.resolve(ctx.outDir, domain)
   if (!existsSync(dir)) {
-    return fail(`${domain} のキャプチャがありません: ${dir}`)
+    throw new SiteSnapError(
+      "DOMAIN_NOT_FOUND",
+      `${domain} のキャプチャがありません: ${dir}`,
+      "sitesnap list でキャプチャ済み domain を確認するか、先に site / page でキャプチャしてください。",
+      { domain, output: dir }
+    )
   }
   const opener =
     process.platform === "darwin"
@@ -294,11 +296,16 @@ async function cmdOpen(ctx: CliContext): Promise<CommandResult> {
 async function cmdRetry(ctx: CliContext): Promise<CommandResult> {
   const domain = ctx.args[0]
   if (!domain) {
-    return fail("使い方: sitesnap retry <domain>")
+    throw missingArg("retry <domain>")
   }
   const meta = await readMeta(ctx, domain)
   if (!meta) {
-    return fail(`meta.json が見つかりません: ${path.join(ctx.outDir, domain)}`)
+    throw new SiteSnapError(
+      "META_NOT_FOUND",
+      `meta.json が見つかりません: ${path.join(ctx.outDir, domain)}`,
+      "先に sitesnap site または page でキャプチャしてください。",
+      { domain }
+    )
   }
   const failedUrls = meta.pages
     .filter((p) => !p.desktop || !p.mobile || p.desktop_error || p.mobile_error)
@@ -343,11 +350,16 @@ async function cmdRetry(ctx: CliContext): Promise<CommandResult> {
 async function cmdDoctor(ctx: CliContext): Promise<CommandResult> {
   const runDir = ctx.args[0]
   if (!runDir) {
-    return fail("使い方: sitesnap doctor <run-dir>")
+    throw missingArg("doctor <run-dir>")
   }
   const resolvedRunDir = path.resolve(runDir)
   if (!existsSync(resolvedRunDir)) {
-    return fail(`run-dir が見つかりません: ${resolvedRunDir}`)
+    throw new SiteSnapError(
+      "RUN_DIR_NOT_FOUND",
+      `run-dir が見つかりません: ${resolvedRunDir}`,
+      "site / page / retry 実行後に出力される runs/latest を指定してください。",
+      { output: resolvedRunDir }
+    )
   }
 
   const report = await analyzeRunDirectory(resolvedRunDir)
@@ -389,7 +401,7 @@ function formatBytes(bytes: number): string {
 
 async function cmdClean(ctx: CliContext): Promise<CommandResult> {
   const host = ctx.args[0] ?? null
-  const result = await pruneShots(ctx.outDir, {
+  const result = await pruneShots(ctx.shotDir, {
     host,
     olderThanDays: ctx.olderThan,
     dryRun: ctx.dryRun,
@@ -397,7 +409,7 @@ async function cmdClean(ctx: CliContext): Promise<CommandResult> {
   return out(
     ctx,
     {
-      out_dir: ctx.outDir,
+      out_dir: ctx.shotDir,
       host: host ?? null,
       older_than_days: ctx.olderThan ?? null,
       dry_run: result.dry_run,

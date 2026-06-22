@@ -80,7 +80,7 @@ sitesnap list
 | `--json` | off | Machine-readable JSON output to stdout; progress logs go to stderr |
 | `--force-visible` | off | Force-show elements hidden by scroll-reveal libraries (AOS, wow.js, Framer Motion's `motion/react` `whileInView`, etc.). **Use when screenshots come out blank.** |
 | `--out <dir>` | `./sites/` (cache for shot) | Output directory. Also configurable via `SITESNAP_OUT` env var. With no value, `shot` writes to an OS cache dir instead of cwd (see below) |
-| `--limit <N>` | off | Capture at most N URLs (sitemap order, after `--exclude`) |
+| `--limit <N>` | off | site: capture at most N URLs (sitemap order, after `--exclude`); inspect: cap matched elements to N (default 10) |
 | `--exclude <regex>` | off | Skip URLs matching this regular expression (e.g., `'\?utm_'`) |
 | `--concurrency <N>` | 3 | Override worker count |
 | `--wait-ms <ms>` | off | Wait before taking each screenshot |
@@ -175,12 +175,13 @@ Single-page capture:
 {
   "success": true,
   "url": "http://localhost:3000/",
-  "file": "/abs/sites/localhost_3000/shots/index--1440x900--sel-footer.png",
+  "file": "/abs/.cache/sitesnap/localhost_3000/shots/index--1440x900--sel-footer.png",
   "viewport": { "width": 1440, "height": 900 },
   "device": null,
   "selector": "footer",
   "full": false,
   "settle_ms": null,
+  "created_at": "2026-06-22T12:00:00.000Z",
   "title": "Example",
   "http_status": 200,
   "duration_ms": 1234
