@@ -89,6 +89,32 @@ test("CLI: extra positional argument fails as structured JSON before command exe
   expect(parsed.error.message).toContain("引数が多すぎます");
 });
 
+test("CLI: 引数不足は構造化 JSON (success:false / INVALID_OPTION) で返す", async () => {
+  const { code, stdout, stderr } = await run(["shot", "--json"]);
+  expect(code).toBe(1);
+  expect(stderr).not.toMatch(/INVALID_OPTION|エラー/i);
+  const parsed = JSON.parse(stdout);
+  expect(parsed.success).toBe(false);
+  expect(parsed.error.code).toBe("INVALID_OPTION");
+});
+
+test("CLI: open で未キャプチャの domain は DOMAIN_NOT_FOUND を JSON で返す", async () => {
+  const { code, stdout } = await run(["open", "no-such-domain.example", "--json"]);
+  expect(code).toBe(1);
+  const parsed = JSON.parse(stdout);
+  expect(parsed.success).toBe(false);
+  expect(parsed.error.code).toBe("DOMAIN_NOT_FOUND");
+});
+
+test("CLI: doctor で存在しない run-dir は RUN_DIR_NOT_FOUND を JSON で返す", async () => {
+  const { code, stdout, stderr } = await run(["doctor", "/no/such/sitesnap-run-dir", "--json"]);
+  expect(code).toBe(1);
+  expect(stderr).not.toMatch(/RUN_DIR_NOT_FOUND|エラー/i);
+  const parsed = JSON.parse(stdout);
+  expect(parsed.success).toBe(false);
+  expect(parsed.error.code).toBe("RUN_DIR_NOT_FOUND");
+});
+
 test("CLI: --version prints version and exits 0", async () => {
   const { stdout, code } = await run(["--version"]);
   expect(code).toBe(0);

@@ -49,7 +49,7 @@ sitesnap shot https://example.com/ --settle 1500 --json
 sitesnap shot https://example.com/ --device "iPhone 13" --json
 sitesnap shot https://example.com/ --full --json
 ```
-JSON の `file` が PNG の絶対パス。meta.json は更新されず `sites/<host>/shots/` に上書き保存。
+JSON の `file` が PNG の絶対パス。meta.json は更新されず、既定では OS キャッシュ（`$XDG_CACHE_HOME/sitesnap`、無ければ `~/.cache/sitesnap`）の `<host>/shots/` に上書き保存（`--out <dir>` で project 配下、`-o <path>` で 1 枚を指定パスへ）。
 
 ### 状態を仕込んで撮り分ける（CSSタブ・details・モック）
 `shot` は撮影前に DOM 状態を作れる。CSSラジオのタブ切替や `<details>` の開閉など、クリックで状態が変わる UI を**一時コピーを作らずに**撮り分けられる。
@@ -63,6 +63,8 @@ sitesnap shot http://localhost:3000/ --allow-private --click "summary" --label o
 sitesnap shot http://localhost:3000/ --allow-private --eval "document.documentElement.classList.add('dark')" --label dark --json
 # ローカルの静的 HTML モックをサーバ無しで直撮り
 sitesnap shot file:///abs/path/mock.html --allow-file --click ".tab-user" --label user --json
+# 撮った 1 枚を指定パスへ直接書き出す（OG 画像の生成など）
+sitesnap shot file:///abs/path/mock.html --allow-file --full -o ./public/og.png --json
 ```
 **`--label` が撮り分けの要**: 付けないと同じ url/vp のバリアントが同名で**上書き**される。状態ごとに必ず `--label` を変える。`--click` は左から順に実行。CSSトランジションを挟む場合は `--settle <ms>` を併用。
 
@@ -97,7 +99,7 @@ sitesnap list --json
 ```
 
 ### shot の棚卸しと掃除（`list --shots` / `clean`）
-`shot` は `sites/<host>/shots/` に溜まる使い捨て領域。`--label` を増やすほどファイルが残るので、定期的に棚卸し・掃除する。`sites/` は gitignore 済みなので消しても安全。
+`shot` は既定で OS キャッシュ（`$XDG_CACHE_HOME/sitesnap`、無ければ `~/.cache/sitesnap`）の `<host>/shots/` に溜まる使い捨て領域（`--out` 指定時はその project 配下）。`--label` を増やすほどファイルが残るので、定期的に棚卸し・掃除する。`list --shots` / `clean` も同じ保存先を見る。撮影先は repo の外（キャッシュ）か gitignore 済みなので消しても安全。
 ```bash
 # どのホストに何枚・何バイト溜まっているか
 sitesnap list --shots --json
@@ -131,9 +133,9 @@ sitesnap doctor sites/example.com/runs/latest --agent-task --json
 - `BROWSER_LAUNCH_FAILED`: `bunx playwright install chromium` を提案
 - `SITEMAP_NOT_XML`: sitemap URLではなくHTMLページなら `sitesnap page` に切り替える
 - `SITEMAP_FETCH_FAILED`: URLやネットワーク、robots.txt の sitemap 記載を確認
-- `PAGE_LOAD_FAILED`: サイトの可用性、timeout、`--wait-ms` の追加を確認
-- `SCREENSHOT_FAILED`: 出力先、ディスク容量、`--force-visible` を確認
 - `DOMAIN_NOT_FOUND`: `sitesnap list --json` でキャプチャ済みdomainを確認
+- `META_NOT_FOUND`: 先に `sitesnap site` / `page` でキャプチャしてから `retry` する
+- `RUN_DIR_NOT_FOUND`: site/page/retry が出力する `runs/latest` を doctor に渡す
 - `UNKNOWN_DEVICE`: Playwright のデバイス名（`"iPhone 13"` 等）を確認
 - `ELEMENT_NOT_FOUND`: セレクタを確認、または `--settle` で描画完了を待つ
 - `INTERACTION_FAILED`: `--click` 対象が無い / `--eval` が例外。セレクタやJSを確認、`--settle` で描画完了を待つ
