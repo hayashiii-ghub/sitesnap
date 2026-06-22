@@ -14,6 +14,8 @@ function ctxFor(outDir: string, over: Partial<CliContext> = {}): CliContext {
     strict: false,
     agentTask: false,
     outDir,
+    outDirExplicit: true,
+    outFile: null,
     captureOptions: { outDir, allowPrivate: false },
     shotOptions: { vp: null, device: null, selector: null, settleMs: null, full: false, props: null, label: null, clicks: [], evalJs: null },
     limit: null,

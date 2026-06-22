@@ -1,7 +1,9 @@
 import { test, expect } from "bun:test";
-import { VERSION, USER_AGENT, DEFAULTS } from "../src/config.ts";
+import { VERSION, USER_AGENT, DEFAULTS, shotCacheDir } from "../src/config.ts";
 import { parseCliArgs } from "../src/cli-args.ts";
 import { readFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 test("VERSION matches package.json", async () => {
   const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
@@ -15,6 +17,14 @@ test("USER_AGENT identifies sitesnap with version and homepage", () => {
 test("DEFAULTS exposes maxSitemapDepth and minIntervalMs", () => {
   expect(typeof DEFAULTS.maxSitemapDepth).toBe("number");
   expect(typeof DEFAULTS.minIntervalMs).toBe("number");
+});
+
+test("shotCacheDir: XDG_CACHE_HOME があればその下の sitesnap", () => {
+  expect(shotCacheDir({ XDG_CACHE_HOME: "/xdg/cache" } as NodeJS.ProcessEnv)).toBe("/xdg/cache/sitesnap");
+});
+
+test("shotCacheDir: XDG なしは ~/.cache/sitesnap", () => {
+  expect(shotCacheDir({} as NodeJS.ProcessEnv)).toBe(path.join(os.homedir(), ".cache", "sitesnap"));
 });
 
 test("parseCliArgs: rejects invalid numeric flags before command execution", () => {

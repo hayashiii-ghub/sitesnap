@@ -13,6 +13,8 @@ function ctxFor(url: string, strict: boolean): CliContext {
     strict,
     agentTask: false,
     outDir: "/tmp/sitesnap-check-cli",
+    outDirExplicit: true,
+    outFile: null,
     captureOptions: { allowPrivate: true },
     shotOptions: { vp: null, device: null, selector: null, settleMs: null, full: false, props: null, label: null, clicks: [], evalJs: null },
     limit: null,

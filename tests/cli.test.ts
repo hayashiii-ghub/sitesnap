@@ -107,6 +107,15 @@ test("CLI: --version takes precedence over subcommand", async () => {
   expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
 });
 
+test("CLI: subcommand --help / -h prints help and exits 0", async () => {
+  for (const args of [["shot", "--help"], ["shot", "-h"]]) {
+    const { stdout, code } = await run(args);
+    expect(code).toBe(0);
+    expect(stdout).toMatch(/sitesnap shot <url>/);
+    expect(stdout).toMatch(/--out-file/);
+  }
+});
+
 test("CLI: doctor --agent-task diagnoses a run directory and writes handoff files", async () => {
   const dir = await makeTmpDir("sitesnap-cli-doctor-");
   try {

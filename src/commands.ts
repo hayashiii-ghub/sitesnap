@@ -166,7 +166,10 @@ async function cmdShot(ctx: CliContext): Promise<CommandResult> {
   }
   const shot = await captureShot(url, {
     ...ctx.shotOptions,
-    outDir: ctx.outDir,
+    // --out / SITESNAP_OUT が明示された時だけ outDir を渡す。
+    // 未指定なら captureShot 側でキャッシュに出す (cwd を汚さない)。
+    outDir: ctx.outDirExplicit ? ctx.outDir : undefined,
+    outFile: ctx.outFile,
     allowPrivate: ctx.captureOptions.allowPrivate,
     allowFile: ctx.captureOptions.allowFile,
     forceVisible: ctx.captureOptions.forceVisible,

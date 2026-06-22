@@ -11,6 +11,8 @@ function baseCtx(overrides: Partial<CliContext> = {}): CliContext {
     strict: false,
     agentTask: false,
     outDir: "/tmp/sitesnap-command-test-missing",
+    outDirExplicit: true,
+    outFile: null,
     captureOptions: {
       outDir: "/tmp/sitesnap-command-test-missing",
       forceVisible: false,

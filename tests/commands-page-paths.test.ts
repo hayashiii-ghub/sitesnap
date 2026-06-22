@@ -26,6 +26,8 @@ test(
         strict: false,
         agentTask: false,
         outDir,
+        outDirExplicit: true,
+        outFile: null,
         captureOptions: { outDir, allowPrivate: true, preScroll: "none" },
         shotOptions: { vp: null, device: null, selector: null, settleMs: null, full: false, props: null, label: null, clicks: [], evalJs: null },
         limit: null,

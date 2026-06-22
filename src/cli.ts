@@ -11,6 +11,13 @@ if (rawArgv.includes("--version") || rawArgv.includes("-v")) {
   process.exit(0)
 }
 
+// -h / --help はサブコマンドの後ろ (例: sitesnap shot --help) でも受ける。
+// parseCliArgs より前に処理しないと未知オプション扱いで弾かれてしまう。
+if (rawArgv.includes("-h") || rawArgv.includes("--help")) {
+  console.log(HELP)
+  process.exit(0)
+}
+
 let ctx
 try {
   ctx = parseCliArgs(rawArgv)
@@ -23,7 +30,7 @@ try {
   process.exit(1)
 }
 
-if (!ctx.sub || ctx.sub === "help" || ctx.sub === "-h" || ctx.sub === "--help") {
+if (!ctx.sub || ctx.sub === "help") {
   console.log(HELP)
   process.exit(0)
 }

@@ -78,8 +78,8 @@ sitesnap list
 | Flag | Default | Description |
 |---|---|---|
 | `--json` | off | Machine-readable JSON output to stdout; progress logs go to stderr |
-| `--force-visible` | off | Force-show elements hidden by scroll-reveal libraries (AOS, wow.js, etc.). **Use when screenshots come out blank.** |
-| `--out <dir>` | `./sites/` | Output directory. Also configurable via `SITESNAP_OUT` env var |
+| `--force-visible` | off | Force-show elements hidden by scroll-reveal libraries (AOS, wow.js, Framer Motion's `motion/react` `whileInView`, etc.). **Use when screenshots come out blank.** |
+| `--out <dir>` | `./sites/` (cache for shot) | Output directory. Also configurable via `SITESNAP_OUT` env var. With no value, `shot` writes to an OS cache dir instead of cwd (see below) |
 | `--limit <N>` | off | Capture at most N URLs (sitemap order, after `--exclude`) |
 | `--exclude <regex>` | off | Skip URLs matching this regular expression (e.g., `'\?utm_'`) |
 | `--concurrency <N>` | 3 | Override worker count |
@@ -111,6 +111,7 @@ Flags for capturing UI that needs a DOM state change before the shot — CSS rad
 | `--eval <js>` | off | Run arbitrary JS before capture (escape hatch for states clicks can't express; prefer `--click`) |
 | `--label <name>` | off | State label appended to the output filename. **Required when capturing state variants** (otherwise they overwrite under the same name) |
 | `--allow-file` | off | Capture local HTML over `file://` (shot only; no server needed) |
+| `-o, --out-file <path>` | off | Write the single shot **directly to this path** (shot only). Parent dirs are created, and `--json` `file` returns this path. Mutually exclusive with `--out` |
 
 ```bash
 # Capture CSS radio tab variants (--label keeps them in separate files)
@@ -118,9 +119,13 @@ sitesnap shot http://localhost:3000/ --allow-private --click ".tab-user"  --labe
 sitesnap shot http://localhost:3000/ --allow-private --click ".tab-admin" --label admin --json
 # Shoot a static local HTML mock with no server
 sitesnap shot file:///abs/path/mock.html --allow-file --click "summary" --label open --json
+# Drop a single shot straight into another project's public/ (no cp, one command)
+sitesnap shot file:///abs/path/mock.html --allow-file --full -o ../my-app/public/og.png --json
+# Reliably full-page a Framer Motion (motion/react) whileInView fade-up SPA
+sitesnap shot http://localhost:3000/ --allow-private --full --pre-scroll full-page --force-visible --settle 800 --json
 ```
 
-Unlike the archival `site`/`page` commands, `shot` does not update meta.json and overwrites into `sites/<host>/shots/`. Localhost gets a per-port folder (e.g. `localhost_3000/`). `file://` shots go under `_file/`.
+Unlike the archival `site`/`page` commands, `shot` is a "scratch" tool, so it **does not touch cwd unless you pass `--out` / `--out-file`**. By default it writes to an OS cache dir (`$XDG_CACHE_HOME/sitesnap`, or `~/.cache/sitesnap`), under `<host>/shots/` (per-port for localhost, e.g. `localhost_3000/`; `file://` goes under `_file/`), overwriting in place and never updating meta.json. Pass `--out <dir>` to write under that directory as before, or `-o <path>` to write a single file to that path. `file://` filenames are basename-based rather than the full absolute path. The `site`/`page` archives still default to `./sites/`.
 
 ### Listing and cleaning shots
 

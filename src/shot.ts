@@ -10,7 +10,7 @@ import {
   launchChromium,
   slugify,
 } from "./capture.ts"
-import { DEFAULTS } from "./config.ts"
+import { DEFAULTS, shotCacheDir } from "./config.ts"
 import { SiteSnapError } from "./errors.ts"
 import { assertPublicUrl } from "./url-guard.ts"
 
@@ -33,7 +33,10 @@ export interface ShotOptions {
   clickTimeoutMs?: number
   // 撮影前に実行する任意 JS (click で表現しにくい状態セットアップの逃げ道)
   evalJs?: string | null
+  // 出力先ディレクトリ。未指定なら OS キャッシュ (cwd を汚さない)
   outDir?: string
+  // 撮った1枚を書き出す絶対/相対パス。指定時は outDir / 自動ファイル名より優先
+  outFile?: string | null
   allowPrivate?: boolean
   // file:// (ローカル HTML モック) の直撮りを許可する
   allowFile?: boolean
@@ -152,9 +155,11 @@ export async function captureShot(url: string, opts: ShotOptions = {}): Promise<
   assertPublicUrl(url, { allowPrivate: opts.allowPrivate || false, allowFile: opts.allowFile || false })
 
   const settle = opts.settleMs ?? null
-  const dir = shotDirFor(url, opts.outDir || DEFAULTS.sitesDir)
-  const file = path.join(dir, shotFileFor(url, opts))
-  await mkdir(dir, { recursive: true })
+  // --out-file 指定時はそのパスへ直接。未指定なら outDir (なければキャッシュ) 配下に自動命名
+  const file = opts.outFile
+    ? path.resolve(opts.outFile)
+    : path.join(shotDirFor(url, opts.outDir || shotCacheDir()), shotFileFor(url, opts))
+  await mkdir(path.dirname(file), { recursive: true })
 
   const browser = opts.browser ?? (await launchChromium())
   let ctx: Awaited<ReturnType<Browser["newContext"]>> | undefined
