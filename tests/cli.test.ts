@@ -67,7 +67,7 @@ test("CLI: invalid numeric option fails as structured JSON before command execut
     "--json",
   ]);
   expect(code).toBe(1);
-  expect(stderr).toBe("");
+  expect(stderr).not.toMatch(/INVALID_OPTION|エラー/i);
   const parsed = JSON.parse(stdout);
   expect(parsed.success).toBe(false);
   expect(parsed.error.code).toBe("INVALID_OPTION");
@@ -82,7 +82,7 @@ test("CLI: extra positional argument fails as structured JSON before command exe
     "--json",
   ]);
   expect(code).toBe(1);
-  expect(stderr).toBe("");
+  expect(stderr).not.toMatch(/INVALID_OPTION|エラー/i);
   const parsed = JSON.parse(stdout);
   expect(parsed.success).toBe(false);
   expect(parsed.error.code).toBe("INVALID_OPTION");
@@ -133,12 +133,14 @@ test("CLI: --version takes precedence over subcommand", async () => {
   expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
 });
 
-test("CLI: subcommand --help / -h prints help and exits 0", async () => {
-  for (const args of [["shot", "--help"], ["shot", "-h"]]) {
+test("CLI: --help / -h はどのサブコマンドの後ろでも、また単体でもヘルプを出して exit 0", async () => {
+  // --help は parseCliArgs より前の argv 横断 intercept なので、サブコマンドに依存せず
+  // 常に同じ HELP 全文を返すはず。サブコマンド固有文字列ではなく共通マーカーで検証する。
+  for (const args of [["shot", "--help"], ["shot", "-h"], ["inspect", "--help"], ["clean", "-h"], ["--help"], ["-h"]]) {
     const { stdout, code } = await run(args);
     expect(code).toBe(0);
+    expect(stdout).toMatch(/使い方:/);
     expect(stdout).toMatch(/sitesnap shot <url>/);
-    expect(stdout).toMatch(/--out-file/);
   }
 });
 

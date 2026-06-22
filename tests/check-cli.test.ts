@@ -1,30 +1,13 @@
 import { test, expect } from "bun:test";
 import { buildCommands } from "../src/commands.ts";
 import type { CliContext } from "../src/cli-args.ts";
+import { makeCtx } from "./helpers";
 
 const BAD_HTML = `<!doctype html><html lang="ja"><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>bad</title></head>
 <body style="margin:0"><div style="width:2000px;height:10px">wide</div></body></html>`;
 
 function ctxFor(url: string, strict: boolean): CliContext {
-  return {
-    sub: "check",
-    args: [url],
-    json: true,
-    strict,
-    agentTask: false,
-    outDir: "/tmp/sitesnap-check-cli",
-    outDirExplicit: true,
-    shotDir: "/tmp/sitesnap-check-cli",
-    outFile: null,
-    captureOptions: { allowPrivate: true },
-    shotOptions: { vp: null, device: null, selector: null, settleMs: null, full: false, props: null, label: null, clicks: [], evalJs: null },
-    limit: null,
-    exclude: null,
-    minInterval: null,
-    dryRun: false,
-    olderThan: null,
-    shots: false,
-  };
+  return makeCtx({ sub: "check", args: [url], strict, outDir: "/tmp/sitesnap-check-cli", captureOptions: { allowPrivate: true } });
 }
 
 test(

@@ -2,32 +2,10 @@ import { test, expect } from "bun:test";
 import { buildCommands } from "../src/commands.ts";
 import { DEFAULTS } from "../src/config.ts";
 import type { CliContext } from "../src/cli-args.ts";
+import { makeCtx } from "./helpers";
 
 function baseCtx(overrides: Partial<CliContext> = {}): CliContext {
-  return {
-    sub: "list",
-    args: [],
-    json: true,
-    strict: false,
-    agentTask: false,
-    outDir: "/tmp/sitesnap-command-test-missing",
-    outDirExplicit: true,
-    shotDir: "/tmp/sitesnap-command-test-missing",
-    outFile: null,
-    captureOptions: {
-      outDir: "/tmp/sitesnap-command-test-missing",
-      forceVisible: false,
-      allowPrivate: false,
-    },
-    shotOptions: { vp: null, device: null, selector: null, settleMs: null, full: false, props: null, label: null, clicks: [], evalJs: null },
-    limit: null,
-    exclude: null,
-    minInterval: null,
-    dryRun: false,
-    olderThan: null,
-    shots: false,
-    ...overrides,
-  };
+  return makeCtx({ sub: "list", outDir: "/tmp/sitesnap-command-test-missing", ...overrides });
 }
 
 test("command handlers return CommandResult instead of writing directly to process state", async () => {

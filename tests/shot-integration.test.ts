@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { captureShot } from "../src/shot.ts";
 import { buildCommands } from "../src/commands.ts";
-import type { CliContext } from "../src/cli-args.ts";
+import { makeCtx } from "./helpers";
 
 // 高さ 3000px のページ。footer は下端の固定サイズ要素
 const PAGE_HTML = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>shot-test</title></head>
@@ -297,25 +297,7 @@ test(
     const outDir = await mkdtemp(path.join(tmpdir(), "sitesnap-shot-"));
     try {
       const url = `http://127.0.0.1:${server.port}/`;
-      const ctx: CliContext = {
-        sub: "shot",
-        args: [url],
-        json: true,
-        strict: false,
-        agentTask: false,
-        outDir,
-        outDirExplicit: true,
-        shotDir: outDir,
-        outFile: null,
-        captureOptions: { outDir, allowPrivate: true },
-        shotOptions: { vp: { width: 800, height: 600 }, device: null, selector: null, settleMs: null, full: false, props: null, label: null, clicks: [], evalJs: null },
-        limit: null,
-        exclude: null,
-        minInterval: null,
-        dryRun: false,
-        olderThan: null,
-        shots: false,
-      };
+      const ctx = makeCtx({ sub: "shot", args: [url], outDir, captureOptions: { allowPrivate: true }, shotOptions: { vp: { width: 800, height: 600 } } });
       const result = await buildCommands().shot!(ctx);
       expect(result.exitCode).toBe(0);
       const data = JSON.parse(result.stdout);
@@ -342,25 +324,7 @@ test(
     const outDir = await mkdtemp(path.join(tmpdir(), "sitesnap-archive-"));
     try {
       const url = `http://127.0.0.1:${server.port}/`;
-      const base: CliContext = {
-        sub: "shot",
-        args: [url],
-        json: true,
-        strict: false,
-        agentTask: false,
-        outDir,
-        outDirExplicit: false,
-        shotDir,
-        outFile: null,
-        captureOptions: { outDir, allowPrivate: true },
-        shotOptions: { vp: null, device: null, selector: null, settleMs: null, full: false, props: null, label: null, clicks: [], evalJs: null },
-        limit: null,
-        exclude: null,
-        minInterval: null,
-        dryRun: false,
-        olderThan: null,
-        shots: false,
-      };
+      const base = makeCtx({ sub: "shot", args: [url], outDir, outDirExplicit: false, shotDir, captureOptions: { allowPrivate: true } });
 
       // shot は shotDir に出る (outDir/./sites ではない)
       const shot = JSON.parse((await buildCommands().shot!(base)).stdout);
@@ -393,25 +357,7 @@ test(
     try {
       const url = `http://127.0.0.1:${server.port}/`;
       const target = path.join(base, "exact", "place", "og.png");
-      const ctx: CliContext = {
-        sub: "shot",
-        args: [url],
-        json: true,
-        strict: false,
-        agentTask: false,
-        outDir: base,
-        outDirExplicit: false,
-        shotDir: path.join(base, "cache"),
-        outFile: target,
-        captureOptions: { outDir: base, allowPrivate: true },
-        shotOptions: { vp: null, device: null, selector: null, settleMs: null, full: false, props: null, label: null, clicks: [], evalJs: null },
-        limit: null,
-        exclude: null,
-        minInterval: null,
-        dryRun: false,
-        olderThan: null,
-        shots: false,
-      };
+      const ctx = makeCtx({ sub: "shot", args: [url], outDir: base, outDirExplicit: false, shotDir: path.join(base, "cache"), outFile: target, captureOptions: { allowPrivate: true } });
       const data = JSON.parse((await buildCommands().shot!(ctx)).stdout);
       expect(data.success).toBeTrue();
       expect(data.file).toBe(target);

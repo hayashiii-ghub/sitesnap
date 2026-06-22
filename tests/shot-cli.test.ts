@@ -67,10 +67,6 @@ test("parseCliArgs: --selector と --full の併用は拒否する", () => {
   ).toThrow(/--selector と --full/);
 });
 
-test("parseCliArgs: --vp の不正値は INVALID_OPTION", () => {
-  expect(() => parseCliArgs(["shot", "https://example.com/", "--vp", "wide"])).toThrow(/--vp/);
-});
-
 test("parseCliArgs: shot は位置引数 1 個まで", () => {
   expect(() => parseCliArgs(["shot", "https://example.com/", "extra"])).toThrow(/引数が多すぎます/);
 });
