@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-import { devices, type Browser } from "playwright"
+import { type Browser } from "playwright"
 import { mkdir } from "node:fs/promises"
 import path from "node:path"
 import {
@@ -11,6 +11,7 @@ import {
   slugify,
 } from "./capture.ts"
 import { DEFAULTS, shotCacheDir } from "./config.ts"
+import { deviceDescriptorFor } from "./devices.ts"
 import { SiteSnapError } from "./errors.ts"
 import { assertPublicUrl } from "./url-guard.ts"
 
@@ -74,19 +75,6 @@ export function parseViewport(value: string): Viewport {
     )
   }
   return { width, height }
-}
-
-function deviceDescriptorFor(name: string) {
-  const d = devices[name]
-  if (!d) {
-    throw new SiteSnapError(
-      "UNKNOWN_DEVICE",
-      `不明なデバイス名です: ${name}`,
-      `Playwright のデバイス名を指定してください (例: "iPhone 13", "iPad Pro 11", "Pixel 7")。`,
-      {}
-    )
-  }
-  return d
 }
 
 function selectorSlug(selector: string): string {

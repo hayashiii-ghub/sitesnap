@@ -1,6 +1,6 @@
 import path from "node:path"
 import type { CaptureOptions } from "./capture.ts"
-import { DEFAULTS, shotCacheDir } from "./config.ts"
+import { DEFAULTS, shotCacheDir, type MobileProfile } from "./config.ts"
 import { SiteSnapError } from "./errors.ts"
 import { createHostRateLimiter, type HostRateLimiter } from "./rate-limit.ts"
 import { parseViewport, type Viewport } from "./shot.ts"
@@ -35,6 +35,8 @@ sitesnap — ウェブサイトのスクリーンショットを一括キャプ�
                                         inspect: 一致要素を N 件まで取得（デフォルト 10）
   --exclude <regex>                     この正規表現にマッチするURLをスキップ
   --concurrency <N>                     並列ワーカー数を上書き（デフォルト 3）
+                                        URL×端末の全キャプチャタスクを同時実行数で制限
+  --mobile-profile <broad>              複数モバイル端末で撮影 (broad: iPhone 17 / iPhone SE (3rd gen) / Pixel 10)
   --wait-ms <ms>                        スクリーンショット前に追加で待機
   --pre-scroll <full-page|none>         スクリーンショット前の自動スクロール設定
   --agent-task                          doctor実行時にagent向け調査ファイルを生成
@@ -44,7 +46,7 @@ sitesnap — ウェブサイトのスクリーンショットを一括キャプ�
 
 shot / inspect / check 用フラグ:
   --vp <WxH>                            ビューポートサイズ（デフォルト 1440x900）
-  --device <name>                       Playwrightデバイス名（例: "iPhone 13"）
+  --device <name>                       Playwrightデバイス名（例: "iPhone 17"）
   --selector <css>                      対象要素のCSSセレクタ（inspectでは必須）
   --settle <ms>                         アニメ凍結せず指定ms待ってから実行
   --full                                フルページ撮影（shotのみ。デフォルトはビューポートのみ）
@@ -80,6 +82,7 @@ list / clean 用フラグ:
   sitesnap site https://example.com/sitemap.xml --limit 10
   sitesnap site https://example.com/sitemap.xml --exclude '\\?utm_'
   sitesnap site https://example.com/sitemap.xml --concurrency 5 --min-interval 250
+  sitesnap site https://example.com/sitemap.xml --mobile-profile broad --json
   sitesnap site https://example.com/sitemap.xml --strict
   sitesnap site http://localhost:8080/sitemap.xml --allow-private
 `
@@ -213,6 +216,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
   let label: string | null = null
   let evalJs: string | null = null
   let olderThan: number | null = null
+  let mobileProfile: MobileProfile | null = null
   const clicks: string[] = []
 
   const flagSet = new Set([
@@ -245,6 +249,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
     "--click",
     "--eval",
     "--older-than",
+    "--mobile-profile",
   ])
   const args: string[] = []
   for (let i = 1; i < argv.length; i++) {
@@ -283,6 +288,15 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
       else if (a === "--click") clicks.push(v)
       else if (a === "--eval") evalJs = v
       else if (a === "--older-than") olderThan = parseNonNegativeInteger(v, a)
+      else if (a === "--mobile-profile") {
+        if (v !== "broad") {
+          throw invalidOption(
+            `--mobile-profile は broad のみ指定できます: ${v}`,
+            "--mobile-profile broad の形式で指定してください。"
+          )
+        }
+        mobileProfile = v
+      }
       continue
     }
     if (a.startsWith("-")) {
@@ -295,6 +309,13 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
   const outDirExplicit = outFlagGiven || envOutGiven
   const shotDir = outDirExplicit ? outDir : shotCacheDir(env)
   validatePositionalArity(sub, args)
+
+  if (mobileProfile && sub !== "site" && sub !== "page" && sub !== "retry") {
+    throw invalidOption(
+      "--mobile-profile は site / page / retry でのみ使用できます",
+      "sitesnap site または page で --mobile-profile broad を指定してください。"
+    )
+  }
 
   if (outFile !== null && sub !== "shot") {
     throw invalidOption("--out-file は shot コマンドでのみ使用できます", "単一ファイル出力は sitesnap shot で指定してください。")
@@ -328,6 +349,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
       concurrency: concurrency ?? undefined,
       waitMs: waitMs ?? undefined,
       preScroll: preScroll ?? undefined,
+      mobileProfile: mobileProfile ?? undefined,
     },
     shotOptions: { vp, device, selector, settleMs, full, props, label, clicks, evalJs },
     limit,

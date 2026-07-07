@@ -51,6 +51,32 @@ test("parseCliArgs: rejects extra positional arguments per subcommand", () => {
   ).toThrow(/INVALID_OPTION|引数が多すぎます/);
 });
 
+test("parseCliArgs: --mobile-profile broad を site/page/retry で受け付ける", () => {
+  expect(parseCliArgs(["site", "https://example.com/sitemap.xml", "--mobile-profile", "broad"]).captureOptions.mobileProfile).toBe(
+    "broad"
+  );
+  expect(parseCliArgs(["page", "https://example.com/", "--mobile-profile", "broad"]).captureOptions.mobileProfile).toBe(
+    "broad"
+  );
+  expect(parseCliArgs(["retry", "example.com", "--mobile-profile", "broad"]).captureOptions.mobileProfile).toBe("broad");
+});
+
+test("parseCliArgs: 未知の --mobile-profile は拒否", () => {
+  expect(() => parseCliArgs(["site", "https://example.com/sitemap.xml", "--mobile-profile", "narrow"])).toThrow(
+    /INVALID_OPTION|--mobile-profile/
+  );
+});
+
+test("parseCliArgs: --mobile-profile は shot では使えない", () => {
+  expect(() => parseCliArgs(["shot", "https://example.com/", "--mobile-profile", "broad"])).toThrow(
+    /INVALID_OPTION|--mobile-profile/
+  );
+});
+
+test("DEFAULTS.viewports.mobile は iPhone 17", () => {
+  expect(DEFAULTS.viewports.mobile).toBe("iPhone 17");
+});
+
 test("parseCliArgs: --min-interval で rateLimiter を一度だけ生成し site/retry が共有する", () => {
   // 未指定なら undefined (レート制限なし)
   expect(parseCliArgs(["site", "https://example.com/sitemap.xml"]).rateLimiter).toBeUndefined();

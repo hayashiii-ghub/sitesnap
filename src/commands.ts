@@ -90,7 +90,14 @@ async function cmdSite(ctx: CliContext): Promise<CommandResult> {
     results,
     options: artifactOptions(ctx),
   })
-  const meta = await buildSiteMeta({ domain, siteDir: siteDir!, urls, source: sitemapUrl, results })
+  const meta = await buildSiteMeta({
+    domain,
+    siteDir: siteDir!,
+    urls,
+    source: sitemapUrl,
+    results,
+    mobileProfile: ctx.captureOptions.mobileProfile,
+  })
   await buildIndex(ctx.outDir)
   const captured = meta.pages.filter((p) => p.desktop || p.mobile).length
   const errors = results
@@ -133,7 +140,14 @@ async function cmdPage(ctx: CliContext): Promise<CommandResult> {
   })
   const existing = (await readMeta(ctx, domain))?.pages.map((p) => p.url) || []
   const allUrls = [...new Set([...existing, url])]
-  const meta = await buildSiteMeta({ domain, siteDir: siteDir!, urls: allUrls, source: null, results })
+  const meta = await buildSiteMeta({
+    domain,
+    siteDir: siteDir!,
+    urls: allUrls,
+    source: null,
+    results,
+    mobileProfile: ctx.captureOptions.mobileProfile,
+  })
   await buildIndex(ctx.outDir)
   const page = meta.pages.find((p) => p.url === url)
   const failed = results.filter((r) => r.error)
@@ -331,6 +345,7 @@ async function cmdRetry(ctx: CliContext): Promise<CommandResult> {
     urls: allUrls,
     source: meta.source,
     results,
+    mobileProfile: ctx.captureOptions.mobileProfile,
   })
   await buildIndex(ctx.outDir)
   const stillFailing = newMeta.pages.filter(

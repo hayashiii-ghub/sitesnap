@@ -82,7 +82,8 @@ sitesnap list
 | `--out <dir>` | `./sites/`(shotはキャッシュ) | 出力先ディレクトリ。`SITESNAP_OUT` 環境変数でも指定可。`shot` は未指定なら cwd ではなく OS キャッシュに出す(後述) |
 | `--limit <N>` | off | site: 最初の N 件のURLだけキャプチャ(`--exclude` 適用後の順序) / inspect: 一致要素を N 件まで取得(既定 10) |
 | `--exclude <regex>` | off | この正規表現にマッチするURLをスキップ(例: `'\?utm_'`) |
-| `--concurrency <N>` | 3 | 並列ワーカー数を上書き |
+| `--concurrency <N>` | 3 | 全キャプチャタスク(URL×端末)の同時実行数 |
+| `--mobile-profile <broad>` | off | 複数モバイル端末で撮影 (`broad`: iPhone 17 / iPhone SE (3rd gen) / Pixel 10) |
 | `--wait-ms <ms>` | off | スクリーンショット前に追加で待機 |
 | `--pre-scroll <full-page\|none>` | `full-page` | スクリーンショット前の自動スクロール設定 |
 | `--agent-task` | off | `doctor` 実行時に Codex / Claude Code / Webwright 向け調査ファイルを生成 |
@@ -95,7 +96,7 @@ sitesnap list
 | フラグ | デフォルト | 説明 |
 |---|---|---|
 | `--vp <WxH>` | `1440x900` | ビューポートサイズ |
-| `--device <name>` | off | Playwrightデバイス名(例: `"iPhone 13"`)。`--vp` と排他 |
+| `--device <name>` | off | Playwrightデバイス名(例: `"iPhone 17"`)。`--vp` と排他 |
 | `--selector <css>` | off | 対象要素のCSSセレクタ(shotでは要素だけ撮影、inspectでは必須)。`--full` と排他 |
 | `--settle <ms>` | off | アニメ凍結せず指定ms待ってから実行(入場アニメ完了後の最終状態を見る) |
 | `--full` | off | フルページ撮影(shotのみ。デフォルトはビューポートのみ) |
@@ -148,6 +149,7 @@ sitesnap list --json
 # → [{ "domain": "...", "pages": 45, ... }]
 
 sitesnap site https://example.com/sitemap.xml --force-visible --out ~/captures
+sitesnap site https://example.com/sitemap.xml --mobile-profile broad --json
 ```
 
 ## JSON 出力例
@@ -297,8 +299,12 @@ sites/                              (--out で変更可)
     ├── runs/latest/result.json      最新runの診断用サマリ
     ├── runs/latest/options.json     最新runの実行オプション
     ├── desktop/<slug>.png          デスクトップ版スクショ
-    └── mobile/<slug>.png           モバイル版スクショ
+    └── mobile/<slug>.png           モバイル版スクショ (デフォルト: iPhone 17)
+        ├── iphone-se-3rd-gen/      --mobile-profile broad 時のみ
+        └── pixel-10/               --mobile-profile broad 時のみ
 ```
+
+`--mobile-profile broad` を指定すると、上記に加えて `mobile/iphone-se-3rd-gen/<slug>.png` と `mobile/pixel-10/<slug>.png` も生成されます。`mobile/<slug>.png` は引き続きデフォルト端末 (`iPhone 17`) の画像です。
 
 ### `meta.json` のスキーマ
 
@@ -319,6 +325,19 @@ sites/                              (--out で変更可)
       "mobile_error": null
     }
   ]
+}
+```
+
+`--mobile-profile broad` 使用時は、既存の `mobile` フィールドに加えて `mobile_variants` が追加されます:
+
+```json
+{
+  "mobile": "mobile/index.png",
+  "mobile_variants": {
+    "iPhone 17": "mobile/index.png",
+    "iPhone SE (3rd gen)": "mobile/iphone-se-3rd-gen/index.png",
+    "Pixel 10": "mobile/pixel-10/index.png"
+  }
 }
 ```
 
@@ -372,7 +391,8 @@ bun run pack:smoke          # npm package の内容と install 後CLIを検証
 `src/config.ts` でデフォルト値を調整できます:
 
 - `viewports.desktop` … デスクトップのビューポートサイズ
-- `viewports.mobile` … モバイルのデバイス名 (Playwright `devices` 参照)
+- `viewports.mobile` … モバイルのデフォルト端末名 (Playwright `devices` 参照。現在 `iPhone 17`)
+- `MOBILE_PROFILE_BROAD` … `--mobile-profile broad` で撮る端末一覧
 - `concurrency` … 並列キャプチャ数(デフォルト3)
 - `navigationTimeout` … ページ読み込みタイムアウト(ms)
 

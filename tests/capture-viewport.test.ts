@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { captureUrls } from "../src/capture.ts";
 import { DEFAULTS } from "../src/config.ts";
+import { devices } from "playwright";
 
 // meta viewport がないと isMobile の Chromium は 980px フォールバック幅でレイアウトする
 const PAGE_HTML = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>vp-test</title></head><body><p>hello</p></body></html>`;
@@ -14,7 +15,7 @@ function pngWidth(buf: Buffer): number {
 }
 
 test(
-  "captureUrls: 撮影PNGの実寸が設定ビューポートと一致する (desktop 1440 / mobile 390x3)",
+  "captureUrls: 撮影PNGの実寸が設定ビューポートと一致する (desktop 1440 / mobile iPhone 17)",
   async () => {
     const server = Bun.serve({
       port: 0,
@@ -41,8 +42,11 @@ test(
       const mobile = results.find((r) => r.mode === "mobile");
       expect(mobile?.error).toBeUndefined();
       expect(mobile?.file).toBeTruthy();
-      // iPhone 13: viewport 390px × deviceScaleFactor 3
-      expect(pngWidth(await readFile(mobile!.file!))).toBe(390 * 3);
+      expect(mobile?.device).toBe("iPhone 17");
+      const iphone17 = devices["iPhone 17"]!;
+      expect(pngWidth(await readFile(mobile!.file!))).toBe(
+        iphone17.viewport.width * iphone17.deviceScaleFactor!
+      );
     } finally {
       server.stop();
       await rm(outDir, { recursive: true, force: true });
