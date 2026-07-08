@@ -1,12 +1,13 @@
 import { readFile, writeFile, readdir } from "node:fs/promises"
 import { existsSync } from "node:fs"
 import path from "node:path"
-import { DEFAULTS, USER_AGENT } from "./config.ts"
-import { slugify } from "./capture.ts"
+import { DEFAULTS, USER_AGENT, type MobileProfile } from "./config.ts"
+import { captureResultKey, mobileOutputRelPath, resolveMobileDevices, slugify } from "./capture.ts"
 
 export interface CaptureResult {
   url: string
   mode: "desktop" | "mobile"
+  device?: string
   title?: string
   error?: string
 }
@@ -17,6 +18,7 @@ export interface PageMeta {
   title: string
   desktop: string | null
   mobile: string | null
+  mobile_variants?: Record<string, string>
   captured_at: string
   desktop_error: string | null
   mobile_error: string | null
@@ -43,6 +45,7 @@ export interface BuildSiteMetaOptions {
   urls: string[]
   source?: string | null
   results?: CaptureResult[]
+  mobileProfile?: MobileProfile
 }
 
 async function fetchTitle(url: string): Promise<string> {
@@ -62,6 +65,7 @@ export async function buildSiteMeta({
   urls,
   source,
   results,
+  mobileProfile,
 }: BuildSiteMetaOptions): Promise<SiteMeta> {
   const metaPath = path.join(siteDir, "meta.json")
 
@@ -71,10 +75,14 @@ export async function buildSiteMeta({
   } catch {}
   const titleByUrl = new Map((prev.pages || []).map((p) => [p.url, p.title]))
 
-  const resultByUrlMode = new Map<string, CaptureResult>()
+  const resultByKey = new Map<string, CaptureResult>()
   for (const r of results || []) {
-    resultByUrlMode.set(`${r.url}|${r.mode}`, r)
+    resultByKey.set(captureResultKey(r.url, r.mode, r.device), r)
   }
+
+  const mobileDevices = resolveMobileDevices(mobileProfile)
+  const includeMobileVariants = mobileProfile === "broad"
+  const defaultMobileDevice = mobileDevices[0]!.name
 
   const now = new Date().toISOString()
   const pages: PageMeta[] = []
@@ -82,14 +90,14 @@ export async function buildSiteMeta({
     const slug = slugify(url)
     const desktopFile = path.join(siteDir, "desktop", `${slug}.png`)
     const mobileFile = path.join(siteDir, "mobile", `${slug}.png`)
-    const dResult = resultByUrlMode.get(`${url}|desktop`)
-    const mResult = resultByUrlMode.get(`${url}|mobile`)
+    const dResult = resultByKey.get(captureResultKey(url, "desktop"))
+    const mResult = resultByKey.get(captureResultKey(url, "mobile", defaultMobileDevice))
 
     let title = titleByUrl.get(url) || ""
     if (dResult?.title) title = dResult.title
     if (!title) title = await fetchTitle(url)
 
-    pages.push({
+    const page: PageMeta = {
       url,
       slug,
       title,
@@ -98,7 +106,22 @@ export async function buildSiteMeta({
       captured_at: now,
       desktop_error: dResult?.error || null,
       mobile_error: mResult?.error || null,
-    })
+    }
+
+    if (includeMobileVariants) {
+      const mobile_variants: Record<string, string> = {}
+      for (const { name, variantSubdir } of mobileDevices) {
+        const relPath = mobileOutputRelPath(slug, variantSubdir)
+        if (existsSync(path.join(siteDir, relPath))) {
+          mobile_variants[name] = relPath
+        }
+      }
+      if (Object.keys(mobile_variants).length > 0) {
+        page.mobile_variants = mobile_variants
+      }
+    }
+
+    pages.push(page)
   }
 
   pages.sort((a, b) => a.url.localeCompare(b.url))

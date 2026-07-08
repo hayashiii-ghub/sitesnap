@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-07-07
+
+### Added
+- **`--mobile-profile broad`**: capture each page on three mobile devices — `iPhone 17` (default, still at `mobile/<slug>.png`), `iPhone SE (3rd gen)` (`mobile/iphone-se-3rd-gen/<slug>.png`), and `Pixel 10` (`mobile/pixel-10/<slug>.png`). When used, `meta.json` gains a `mobile_variants` map (including the default device) while the existing `mobile` field stays unchanged.
+
+### Changed
+- **Default mobile device for `site` / `page` is now `iPhone 17`** (was `iPhone 13`). Output paths and the `mobile` / `mobile_path` JSON fields are unchanged.
+- **`--concurrency` now limits all capture tasks** (URL × viewport/device), not per-mode URL batches. Example: 10 URLs with `--mobile-profile broad` queues 40 tasks (10 desktop + 30 mobile) and runs up to `--concurrency` at a time.
+- **Playwright dependency bumped to 1.61.1** so `iPhone 17` and `Pixel 10` device descriptors resolve at runtime.
+
 ## [0.6.4] - 2026-06-22
 
 ### Fixed

@@ -1,10 +1,11 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
-import { chromium, devices, type Browser } from "playwright"
+import { type Browser } from "playwright"
 import { mkdir, stat } from "node:fs/promises"
 import { existsSync } from "node:fs"
 import path from "node:path"
-import { DEFAULTS } from "./config.ts"
+import { DEFAULTS, MOBILE_PROFILE_BROAD, MOBILE_VARIANT_SUBDIRS, type MobileProfile } from "./config.ts"
+import { defaultMobileDeviceName, deviceContextOptions } from "./devices.ts"
 import { assertPublicUrl } from "./url-guard.ts"
 import { SiteSnapError } from "./errors.ts"
 
@@ -25,6 +26,7 @@ export interface CaptureOptions {
   allowFile?: boolean
   dryRun?: boolean
   force?: boolean
+  mobileProfile?: MobileProfile
   rateLimiter?: HostRateLimiter
   onLog?: (message: string) => void
 }
@@ -32,6 +34,7 @@ export interface CaptureOptions {
 export interface CaptureResult {
   url: string
   mode: CaptureMode
+  device?: string
   file?: string
   slug: string
   skipped?: boolean
@@ -51,6 +54,18 @@ export interface CaptureTarget {
   domain: string
   siteDir: string | null
   otherHosts: string[]
+}
+
+export interface MobileCaptureDevice {
+  name: string
+  variantSubdir?: string
+}
+
+export interface CaptureTask {
+  url: string
+  mode: CaptureMode
+  device?: string
+  variantSubdir?: string
 }
 
 export function slugify(url: string): string {
@@ -106,22 +121,74 @@ export function resolveCaptureTarget(
   return { domain, siteDir, otherHosts }
 }
 
+export function resolveMobileDevices(mobileProfile?: MobileProfile): MobileCaptureDevice[] {
+  const defaultDevice = defaultMobileDeviceName()
+  if (!mobileProfile) {
+    return [{ name: defaultDevice }]
+  }
+  if (mobileProfile === "broad") {
+    return MOBILE_PROFILE_BROAD.map((name) => ({
+      name,
+      variantSubdir: name === defaultDevice ? undefined : MOBILE_VARIANT_SUBDIRS[name],
+    }))
+  }
+  const _exhaustive: never = mobileProfile
+  throw new SiteSnapError(
+    "INVALID_OPTION",
+    `不明な --mobile-profile です: ${_exhaustive}`,
+    `--mobile-profile broad を指定してください。`,
+    {}
+  )
+}
+
+export function mobileOutputRelPath(slug: string, variantSubdir?: string): string {
+  if (!variantSubdir) return `mobile/${slug}.png`
+  return `mobile/${variantSubdir}/${slug}.png`
+}
+
+export function mobileOutputAbsPath(siteDir: string, slug: string, variantSubdir?: string): string {
+  return path.join(siteDir, mobileOutputRelPath(slug, variantSubdir))
+}
+
+export function buildCaptureTasks(urls: string[], mobileProfile?: MobileProfile): CaptureTask[] {
+  const mobileDevices = resolveMobileDevices(mobileProfile)
+  const tasks: CaptureTask[] = []
+  for (const url of urls) {
+    tasks.push({ url, mode: "desktop" })
+    for (const { name, variantSubdir } of mobileDevices) {
+      tasks.push({ url, mode: "mobile", device: name, variantSubdir })
+    }
+  }
+  return tasks
+}
+
+export function captureResultKey(url: string, mode: CaptureMode, device?: string): string {
+  return device ? `${url}|${mode}|${device}` : `${url}|${mode}`
+}
+
 // newContext は viewport を { viewport: {width, height} } とネストして受け取る。
 // トップレベル spread だと width/height が捨てられ Playwright デフォルト寸法になる
-export function contextOptionsFor(mode: CaptureMode) {
-  const v = DEFAULTS.viewports[mode]
-  if (typeof v === "string") return devices[v]
-  const { width, height, deviceScaleFactor, isMobile, hasTouch } = v
-  return { viewport: { width, height }, deviceScaleFactor, isMobile, hasTouch }
+export function contextOptionsFor(mode: CaptureMode, deviceName?: string) {
+  if (mode === "desktop") {
+    const v = DEFAULTS.viewports.desktop
+    const { width, height, deviceScaleFactor, isMobile, hasTouch } = v
+    return { viewport: { width, height }, deviceScaleFactor, isMobile, hasTouch }
+  }
+  return deviceContextOptions(deviceName ?? defaultMobileDeviceName())
 }
 
 function createCaptureLogger(opts: CaptureOptions): (message: string) => void {
   return opts.onLog ?? ((message: string) => console.error(message))
 }
 
-async function prepareCaptureDirs(siteDir: string): Promise<void> {
+async function prepareCaptureDirs(siteDir: string, mobileProfile?: MobileProfile): Promise<void> {
   await mkdir(path.join(siteDir, "desktop"), { recursive: true })
   await mkdir(path.join(siteDir, "mobile"), { recursive: true })
+  if (mobileProfile === "broad") {
+    for (const subdir of Object.values(MOBILE_VARIANT_SUBDIRS)) {
+      await mkdir(path.join(siteDir, "mobile", subdir), { recursive: true })
+    }
+  }
 }
 
 // テスト専用シーム: bun test の preload が共有 browser をセットする。
@@ -133,6 +200,7 @@ declare global {
 }
 
 export async function launchChromium(): Promise<Browser> {
+  const { chromium } = await import("playwright")
   if (globalThis.__sitesnapSharedBrowser) return globalThis.__sitesnapSharedBrowser
   try {
     return await chromium.launch()
@@ -192,24 +260,34 @@ export const FORCE_VISIBLE_CSS = `
   }
 `
 
+function taskLogLabel(task: CaptureTask): string {
+  if (task.mode === "mobile" && task.device) return `${task.mode}:${task.device}`
+  return task.mode
+}
+
 async function captureOne(
   browser: Browser,
-  url: string,
-  mode: CaptureMode,
+  task: CaptureTask,
   siteDir: string,
   opts: CaptureOptions = {}
 ): Promise<CaptureResult> {
   const startedAt = Date.now()
+  const { url, mode, device, variantSubdir } = task
   const slug = slugify(url)
-  const file = path.join(siteDir, mode, `${slug}.png`)
+  const file =
+    mode === "mobile"
+      ? mobileOutputAbsPath(siteDir, slug, variantSubdir)
+      : path.join(siteDir, mode, `${slug}.png`)
 
   if (!opts.force && existsSync(file)) {
     const s = await stat(file)
-    if (s.size > 1024) return { url, mode, file, slug, skipped: true }
+    if (s.size > 1024) {
+      return { url, mode, device, file, slug, skipped: true }
+    }
   }
 
   const ctx = await browser.newContext({
-    ...contextOptionsFor(mode),
+    ...contextOptionsFor(mode, device),
     locale: DEFAULTS.locale,
     timezoneId: DEFAULTS.timezone,
     reducedMotion: "reduce",
@@ -244,13 +322,12 @@ async function captureOne(
   } finally {
     await ctx.close()
   }
-  return { url, mode, file, slug, title, httpStatus, durationMs: Date.now() - startedAt }
+  return { url, mode, device, file, slug, title, httpStatus, durationMs: Date.now() - startedAt }
 }
 
-async function runCaptureMode(
+async function runCaptureTasks(
   browser: Browser,
-  urls: string[],
-  mode: CaptureMode,
+  tasks: CaptureTask[],
   siteDir: string,
   opts: CaptureOptions,
   log: (message: string) => void
@@ -261,37 +338,24 @@ async function runCaptureMode(
 
   let i = 0
   const worker = async () => {
-    while (i < urls.length) {
+    while (i < tasks.length) {
       const my = i++
-      const url = urls[my]!
+      const task = tasks[my]!
+      const label = taskLogLabel(task)
       try {
-        if (rateLimiter) await rateLimiter.wait(domainOf(url))
-        const r = await captureOne(browser, url, mode, siteDir, opts)
+        if (rateLimiter) await rateLimiter.wait(domainOf(task.url))
+        const r = await captureOne(browser, task, siteDir, opts)
         results.push(r)
-        log(`[${mode}] ${my + 1}/${urls.length} ${r.skipped ? "skip" : "ok  "} ${url}`)
+        log(`[${label}] ${my + 1}/${tasks.length} ${r.skipped ? "skip" : "ok  "} ${task.url}`)
       } catch (e) {
         const message = (e as Error).message
-        log(`[${mode}] ${my + 1}/${urls.length} ERR  ${url} :: ${message}`)
-        results.push({ url, mode, error: message, slug: slugify(url) })
+        log(`[${label}] ${my + 1}/${tasks.length} ERR  ${task.url} :: ${message}`)
+        results.push({ url: task.url, mode: task.mode, device: task.device, error: message, slug: slugify(task.url) })
       }
     }
   }
 
   await Promise.all(Array.from({ length: concurrency }, worker))
-  return results
-}
-
-async function runCaptureWorkers(
-  browser: Browser,
-  urls: string[],
-  siteDir: string,
-  opts: CaptureOptions,
-  log: (message: string) => void
-): Promise<CaptureResult[]> {
-  const results: CaptureResult[] = []
-  for (const mode of ["desktop", "mobile"] as const) {
-    results.push(...(await runCaptureMode(browser, urls, mode, siteDir, opts, log)))
-  }
   return results
 }
 
@@ -307,13 +371,14 @@ export async function captureUrls(urls: string[], opts: CaptureOptions = {}): Pr
   }
 
   const siteDir = target.siteDir!
-  await prepareCaptureDirs(siteDir)
+  await prepareCaptureDirs(siteDir, opts.mobileProfile)
 
   const browser = await launchChromium()
   let results: CaptureResult[] = []
 
   try {
-    results = await runCaptureWorkers(browser, urls, siteDir, opts, log)
+    const tasks = buildCaptureTasks(urls, opts.mobileProfile)
+    results = await runCaptureTasks(browser, tasks, siteDir, opts, log)
   } finally {
     await closeChromium(browser)
   }

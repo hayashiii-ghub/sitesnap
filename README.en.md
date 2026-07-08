@@ -82,7 +82,8 @@ sitesnap list
 | `--out <dir>` | `./sites/` (cache for shot) | Output directory. Also configurable via `SITESNAP_OUT` env var. With no value, `shot` writes to an OS cache dir instead of cwd (see below) |
 | `--limit <N>` | off | site: capture at most N URLs (sitemap order, after `--exclude`); inspect: cap matched elements to N (default 10) |
 | `--exclude <regex>` | off | Skip URLs matching this regular expression (e.g., `'\?utm_'`) |
-| `--concurrency <N>` | 3 | Override worker count |
+| `--concurrency <N>` | 3 | Max concurrent capture tasks (URL × viewport/device) |
+| `--mobile-profile <broad>` | off | Capture on multiple mobile devices (`broad`: iPhone 17 / iPhone SE (3rd gen) / Pixel 10) |
 | `--wait-ms <ms>` | off | Wait before taking each screenshot |
 | `--pre-scroll <full-page\|none>` | `full-page` | Control automatic pre-screenshot scrolling |
 | `--agent-task` | off | With `doctor`, generate Codex / Claude Code / Webwright handoff files |
@@ -95,7 +96,7 @@ sitesnap list
 | Flag | Default | Description |
 |---|---|---|
 | `--vp <WxH>` | `1440x900` | Viewport size |
-| `--device <name>` | off | Playwright device name (e.g. `"iPhone 13"`). Mutually exclusive with `--vp` |
+| `--device <name>` | off | Playwright device name (e.g. `"iPhone 17"`). Mutually exclusive with `--vp` |
 | `--selector <css>` | off | Target element CSS selector (element-only capture for shot, required for inspect). Mutually exclusive with `--full` |
 | `--settle <ms>` | off | Skip animation freezing and wait before running (observe the post-animation final state) |
 | `--full` | off | Capture the full page (shot only; default is viewport-only) |
@@ -148,6 +149,7 @@ sitesnap list --json
 # → [{ "domain": "...", "pages": 45, ... }]
 
 sitesnap site https://example.com/sitemap.xml --force-visible --out ~/captures
+sitesnap site https://example.com/sitemap.xml --mobile-profile broad --json
 ```
 
 ## JSON output examples
@@ -298,8 +300,12 @@ sites/                              (or wherever --out points)
     ├── runs/latest/result.json     latest run diagnosis summary
     ├── runs/latest/options.json    latest run options
     ├── desktop/<slug>.png          desktop screenshots
-    └── mobile/<slug>.png           mobile screenshots
+    └── mobile/<slug>.png           mobile screenshots (default: iPhone 17)
+        ├── iphone-se-3rd-gen/      only with --mobile-profile broad
+        └── pixel-10/               only with --mobile-profile broad
 ```
+
+With `--mobile-profile broad`, additional files are written under `mobile/iphone-se-3rd-gen/` and `mobile/pixel-10/`. `mobile/<slug>.png` remains the default device (`iPhone 17`).
 
 ### `meta.json` schema
 
@@ -320,6 +326,19 @@ sites/                              (or wherever --out points)
       "mobile_error": null
     }
   ]
+}
+```
+
+When `--mobile-profile broad` is used, pages gain a `mobile_variants` map in addition to the unchanged `mobile` field:
+
+```json
+{
+  "mobile": "mobile/index.png",
+  "mobile_variants": {
+    "iPhone 17": "mobile/index.png",
+    "iPhone SE (3rd gen)": "mobile/iphone-se-3rd-gen/index.png",
+    "Pixel 10": "mobile/pixel-10/index.png"
+  }
 }
 ```
 
@@ -373,8 +392,9 @@ bun run pack:smoke          # verify npm package contents and installed CLI
 Defaults live in `src/config.ts` (in the source repo). When using as a globally-installed CLI, you can fork the package or contribute upstream to adjust:
 
 - `viewports.desktop` — desktop viewport (width × height, deviceScaleFactor)
-- `viewports.mobile` — Playwright device preset name (e.g. `"iPhone 13"`)
-- `concurrency` — parallel capture workers (default: 3)
+- `viewports.mobile` — Playwright device preset name for default mobile capture (currently `"iPhone 17"`)
+- `MOBILE_PROFILE_BROAD` — device list for `--mobile-profile broad`
+- `concurrency` — max concurrent capture tasks (default: 3)
 - `navigationTimeout` — page load timeout in ms (default: 45000)
 
 ---
