@@ -29,9 +29,13 @@ jobs:
         with:
           node-version: 22
 
-      # trusted publishing 対応の npm を保証（>= 11.5.1）
+      # trusted publishing 対応の npm を保証（>= 11.5.1）。
+      # latest 追従にしない: npm の major 更新でリリースが突然落ちる。
+      # 実績として npm 12.0.1 が pack --json の出力形式を配列からオブジェクトに変え、
+      # v0.7.0 のリリースを publish 前に止めた。major は手で上げて PR の CI で検証する。
+      # ci.yml と同じバージョンにすること（揃っていないと CI green でもリリースが落ちる）。
       - name: Ensure recent npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@^12
 
       - name: Install dependencies
         run: bun install --frozen-lockfile

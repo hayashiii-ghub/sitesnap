@@ -8,7 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- **Release gate no longer breaks on npm 12.** `npm pack --json` changed its output from an array to an object keyed by package name in npm 12.0.1, so `pack:smoke` read an empty file list and failed with "npm package is missing dist/cli.js" even though the tarball was correct. The release workflow installs `npm@latest`, so this blocked publishing. The script now accepts both shapes.
+- **Release gate no longer breaks on npm 12.** `npm pack --json` changed its output from an array to an object keyed by package name in npm 12.0.1, so `pack:smoke` read an empty file list and failed with "npm package is missing dist/cli.js" even though the tarball was correct. Since the release workflow installed `npm@latest`, this blocked publishing. The script now accepts both shapes.
+
+### Changed
+- **CI and release now pin the same npm major (`npm@^12`) and run `pack:smoke` on it.** Tracking `npm@latest` meant an npm major release could break publishing without any change on our side, and CI (which used the runner's default npm) could pass while the release failed on the same script. Bump the pin by hand so a PR's CI verifies the new major before a release depends on it.
 
 ## [0.7.0] - 2026-07-16
 

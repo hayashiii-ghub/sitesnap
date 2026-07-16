@@ -15,6 +15,16 @@ jobs:
         with:
           bun-version: latest
 
+      # pack:smoke は npm の挙動を検証するので、release.yml と同じ node / npm で回す。
+      # runner 既定の npm のままだと、リリースだけが npm の変更で落ちる
+      # （v0.7.0 で実際に起きた: PR の CI は pass、release.yml だけ npm 12 で失敗）。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Ensure recent npm
+        run: npm install -g npm@^12
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
