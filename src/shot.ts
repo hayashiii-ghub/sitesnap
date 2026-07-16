@@ -2,11 +2,13 @@
 import { type Browser } from "playwright"
 import { mkdir } from "node:fs/promises"
 import path from "node:path"
+import { authContextOptions, type AuthOptions } from "./auth.ts"
 import {
   autoScroll,
   closeChromium,
   FORCE_VISIBLE_CSS,
   FREEZE_ANIMATIONS_CSS,
+  gotoAndSettle,
   launchChromium,
   slugify,
 } from "./capture.ts"
@@ -20,7 +22,7 @@ export interface Viewport {
   height: number
 }
 
-export interface ShotOptions {
+export interface ShotOptions extends AuthOptions {
   vp?: Viewport | null
   device?: string | null
   selector?: string | null
@@ -154,16 +156,14 @@ export async function captureShot(url: string, opts: ShotOptions = {}): Promise<
   try {
     ctx = await browser.newContext({
       ...shotContextOptions(opts),
+      ...authContextOptions(opts),
       locale: DEFAULTS.locale,
       timezoneId: DEFAULTS.timezone,
       // --settle はアニメ完了後の最終状態を撮るためのフラグなので凍結しない
       ...(settle === null ? { reducedMotion: "reduce" as const } : {}),
     })
     const page = await ctx.newPage()
-    const response = await page.goto(url, {
-      waitUntil: "networkidle",
-      timeout: DEFAULTS.navigationTimeout,
-    })
+    const response = await gotoAndSettle(page, url)
     const title = await page.title()
 
     // 撮影前の状態仕込み: eval を先に流して初期状態を仕込んでから click 操作する。

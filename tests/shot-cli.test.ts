@@ -82,8 +82,8 @@ test("parseCliArgs: --out-file 未指定は null", () => {
   expect(parseCliArgs(["shot", "https://example.com/"]).outFile).toBeNull();
 });
 
-test("parseCliArgs: --out-file は shot 以外では拒否する", () => {
-  expect(() => parseCliArgs(["page", "https://example.com/", "-o", "x.png"])).toThrow(/shot コマンドでのみ/);
+test("parseCliArgs: --out-file は shot / login 以外では拒否する", () => {
+  expect(() => parseCliArgs(["page", "https://example.com/", "-o", "x.png"])).toThrow(/shot \/ login コマンドでのみ/);
 });
 
 test("parseCliArgs: --out と --out-file の併用は拒否する", () => {

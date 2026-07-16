@@ -18,6 +18,9 @@ export const DEFAULTS = {
   timezone: "Asia/Tokyo",
   concurrency: 3,
   navigationTimeout: 45000,
+  // load 後に networkidle を待つ上限。広告等で常時通信するサイトは
+  // networkidle に到達しないため、これを超えたら待たずに撮影へ進む
+  networkIdleTimeout: 10000,
   scrollStep: 400,
   scrollInterval: 120,
   postScrollWait: 600,

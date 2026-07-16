@@ -1,5 +1,6 @@
 /// <reference lib="dom" />
-import { closeChromium, FREEZE_ANIMATIONS_CSS, launchChromium } from "./capture.ts"
+import { authContextOptions } from "./auth.ts"
+import { closeChromium, FREEZE_ANIMATIONS_CSS, gotoAndSettle, launchChromium } from "./capture.ts"
 import { DEFAULTS } from "./config.ts"
 import { SiteSnapError } from "./errors.ts"
 import { assertPublicUrl } from "./url-guard.ts"
@@ -27,7 +28,10 @@ const DEFAULT_PROPS = [
 ] as const
 
 export interface InspectOptions
-  extends Pick<ShotOptions, "vp" | "device" | "settleMs" | "allowPrivate" | "browser"> {
+  extends Pick<
+    ShotOptions,
+    "vp" | "device" | "settleMs" | "allowPrivate" | "browser" | "storageState" | "headers" | "httpCredentials"
+  > {
   selector?: string | null
   props?: string[]
   limit?: number | null
@@ -73,15 +77,13 @@ export async function inspectUrl(url: string, opts: InspectOptions = {}): Promis
   try {
     ctx = await browser.newContext({
       ...shotContextOptions(opts),
+      ...authContextOptions(opts),
       locale: DEFAULTS.locale,
       timezoneId: DEFAULTS.timezone,
       ...(settle === null ? { reducedMotion: "reduce" as const } : {}),
     })
     const page = await ctx.newPage()
-    const response = await page.goto(url, {
-      waitUntil: "networkidle",
-      timeout: DEFAULTS.navigationTimeout,
-    })
+    const response = await gotoAndSettle(page, url)
     const title = await page.title()
 
     if (settle === null) {

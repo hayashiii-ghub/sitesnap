@@ -71,6 +71,7 @@ sitesnap list
 | `sitesnap open <domain>` | Finderでサイトのフォルダを開く |
 | `sitesnap retry <domain>` | 失敗したページのみ再取得 |
 | `sitesnap doctor <run-dir>` | キャプチャ結果を診断し、再取得案やagent向け調査票を生成 |
+| `sitesnap login <url>` | ブラウザでログインして状態を保存 → `--storage-state` で再利用 |
 | `sitesnap help` | ヘルプ表示 |
 
 ### フラグ
@@ -90,6 +91,24 @@ sitesnap list
 | `--min-interval <ms>` | 0 | 同一ホストへの最小間隔(ms)。サーバーに優しい運用に |
 | `--strict` | off | 1ページでも失敗したら非ゼロ終了(CI向け) |
 | `--allow-private` | off | localhost/プライベートIPへのアクセスを許可 |
+
+### 認証フラグ(site / page / shot / inspect / check / retry)
+
+| フラグ | デフォルト | 説明 |
+|---|---|---|
+| `--storage-state <file>` | off | Playwright storage state JSON(cookies+localStorage)を読み込んで撮影。`sitesnap login <url> -o <file>` で作成 |
+| `--header "Name: value"` | off | 全リクエストに追加ヘッダを付与(繰り返し可)。例: `--header "Authorization: Bearer TOKEN"` |
+| `--http-credentials <user:pass>` | off | HTTP Basic認証(ステージング環境など)。`SITESNAP_HTTP_CREDENTIALS` 環境変数でも指定可 |
+
+```bash
+# 1度だけ: ブラウザが開くのでログインし、ターミナルで Enter → auth.json に保存
+sitesnap login https://app.example.com/login -o auth.json
+# 以降はその状態で撮影・チェックできる
+sitesnap shot  https://app.example.com/dashboard --storage-state auth.json --json
+sitesnap check https://app.example.com/dashboard --storage-state auth.json --json
+```
+
+> ⚠️ storage state ファイルはログインセッションそのものです。`.gitignore` に追加し、共有しないでください。run 成果物(options.json)にはヘッダ値・認証情報は `<redacted>` で記録されます。
 
 ### shot / inspect / check 用フラグ
 

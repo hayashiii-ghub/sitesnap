@@ -5,10 +5,10 @@ import { SiteSnapError } from "./errors.ts"
 
 const parser = new XMLParser()
 
-async function fetchXml(url: string): Promise<unknown> {
+async function fetchXml(url: string, headers?: Record<string, string>): Promise<unknown> {
   let res: Response
   try {
-    res = await fetch(url, { headers: { "user-agent": USER_AGENT } })
+    res = await fetch(url, { headers: { "user-agent": USER_AGENT, ...(headers || {}) } })
   } catch (err) {
     throw new SiteSnapError(
       "SITEMAP_FETCH_FAILED",
@@ -51,6 +51,8 @@ export interface ExpandSitemapOptions {
   depth?: number
   maxDepth?: number
   allowPrivate?: boolean
+  // 認証下の sitemap.xml 向け追加ヘッダ (--header / --http-credentials 由来)
+  headers?: Record<string, string>
 }
 
 interface SitemapIndexEntry {
@@ -86,7 +88,7 @@ export async function expandSitemap(
 
   assertPublicUrl(sitemapUrl, { allowPrivate })
 
-  const data = (await fetchXml(sitemapUrl)) as ParsedSitemap
+  const data = (await fetchXml(sitemapUrl, opts.headers)) as ParsedSitemap
 
   if (data.sitemapindex) {
     const entries = data.sitemapindex.sitemap
@@ -100,6 +102,7 @@ export async function expandSitemap(
         depth: depth + 1,
         maxDepth,
         allowPrivate,
+        headers: opts.headers,
       }
       for (const u of await expandSitemap(sub, childOpts)) all.add(u)
     }
