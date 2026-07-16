@@ -45,11 +45,28 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
 }
 
+interface PackEntry {
+  filename: string
+  files?: Array<{ path: string }>
+}
+
+// npm pack --json の出力形式は npm 12 で変わった:
+//   npm 11 以前: [{ filename, files, ... }]
+//   npm 12:      { "<package name>": { filename, files, ... } }
+// release.yml は npm@latest を入れるので、どちらでも動くよう正規化する
+// (形式差でリリースが落ちても tarball の中身は壊れていない、という事故を防ぐ)
+function packEntries(raw: string): PackEntry[] {
+  const parsed = JSON.parse(raw) as PackEntry[] | Record<string, PackEntry>
+  const entries = Array.isArray(parsed) ? parsed : Object.values(parsed)
+  assert(entries.length > 0, `npm pack --json returned no package entry: ${raw.slice(0, 200)}`)
+  return entries
+}
+
 try {
-  const dryRun = JSON.parse(run("npm", ["pack", "--dry-run", "--json"])) as Array<{
-    files: Array<{ path: string }>
-  }>
-  const packedPaths = new Set(dryRun[0]?.files.map((file) => file.path) ?? [])
+  const dryRun = packEntries(run("npm", ["pack", "--dry-run", "--json"]))
+  const packedFiles = dryRun[0]!.files
+  assert(packedFiles, "npm pack --dry-run --json did not report a file list")
+  const packedPaths = new Set(packedFiles.map((file) => file.path))
 
   for (const required of [
     "dist/cli.js",
@@ -68,9 +85,7 @@ try {
     assert(!filePath.startsWith("tests/"), `npm package should not include test file: ${filePath}`)
   }
 
-  const pack = JSON.parse(run("npm", ["pack", "--json", "--pack-destination", packTmp])) as Array<{
-    filename: string
-  }>
+  const pack = packEntries(run("npm", ["pack", "--json", "--pack-destination", packTmp]))
   const tarball = join(packTmp, pack[0]!.filename)
   assert(existsSync(tarball), `packed tarball does not exist: ${tarball}`)
 
