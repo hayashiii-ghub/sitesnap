@@ -1,4 +1,5 @@
 import path from "node:path"
+import { parseHeaderFlag, parseHttpCredentials, resolveStorageStatePath } from "./auth.ts"
 import type { CaptureOptions } from "./capture.ts"
 import { DEFAULTS, shotCacheDir, type MobileProfile } from "./config.ts"
 import { SiteSnapError } from "./errors.ts"
@@ -14,6 +15,7 @@ sitesnap — ウェブサイトのスクリーンショットを一括キャプ�
   sitesnap shot <url>              開発検証用の単発スクリーンショット
   sitesnap inspect <url>           要素の computed style / 寸法 / overflow を JSON で取得
   sitesnap check <url>             横はみ出し/consoleエラー/失敗リクエスト/a11y の合否レポート
+  sitesnap login <url>             ブラウザでログインして状態を保存 (--storage-state で再利用)
   sitesnap list                    キャプチャ済みサイト一覧 (--shots で shot を列挙)
   sitesnap clean [host]            溜まった shot を削除 (アーカイブには触れない)
   sitesnap open <domain>           Finderでサイトのフォルダを開く
@@ -44,6 +46,15 @@ sitesnap — ウェブサイトのスクリーンショットを一括キャプ�
   --strict                              1ページでも失敗したら非ゼロ終了（CI向け）
   --allow-private                       localhost/プライベートIPへのアクセスを許可
 
+認証フラグ (site / page / shot / inspect / check / retry):
+  --storage-state <file>                Playwright storage state JSON (cookies+localStorage)
+                                        を読み込んで撮影。sitesnap login <url> で作成できる
+  --header "Name: value"                全リクエストに追加ヘッダを付与（繰り返し可）
+                                        例: --header "Authorization: Bearer TOKEN"
+  --http-credentials <user:pass>        HTTP Basic認証（ステージング環境など）
+                                        SITESNAP_HTTP_CREDENTIALS 環境変数でも指定可
+                                        （シェル履歴に残さないなら環境変数を推奨）
+
 shot / inspect / check 用フラグ:
   --vp <WxH>                            ビューポートサイズ（デフォルト 1440x900）
   --device <name>                       Playwrightデバイス名（例: "iPhone 17"）
@@ -61,6 +72,10 @@ shot の撮影前インタラクション / 状態指定:
                                         親ディレクトリは自動作成。--json の file もこのパスを返す
                                         （--out とは併用不可）
 
+login 用フラグ:
+  -o, --out-file <path>                 保存先の storage state ファイル
+                                        （デフォルト ./sitesnap-state.json。gitignore 推奨）
+
 list / clean 用フラグ:
   --shots                               list で shot をホスト別に列挙 (既定はキャッシュ領域。--out で project 配下に変更可)
   --older-than <days>                   clean で指定日数より古い shot だけ削除
@@ -68,6 +83,10 @@ list / clean 用フラグ:
 
 使用例:
   sitesnap shot http://localhost:3000/about --allow-private --json
+  sitesnap login https://app.example.com/login -o auth.json
+  sitesnap shot https://app.example.com/dashboard --storage-state auth.json --json
+  sitesnap shot https://api.example.com/ --header "Authorization: Bearer TOKEN" --json
+  sitesnap site https://staging.example.com/sitemap.xml --http-credentials user:pass --json
   sitesnap shot https://example.com/ --selector "footer" --json
   sitesnap shot https://example.com/ --device "iPhone 13" --settle 1500 --json
   sitesnap shot http://localhost:3000/ --allow-private --click ".tab-user" --label user --json
@@ -154,6 +173,7 @@ const maxPositionalArgsBySubcommand: Record<string, number> = {
   shot: 1,
   inspect: 1,
   check: 1,
+  login: 1,
   list: 0,
   open: 1,
   retry: 1,
@@ -167,6 +187,7 @@ const usageArgBySubcommand: Record<string, string> = {
   shot: " <url>",
   inspect: " <url>",
   check: " <url>",
+  login: " <url>",
   open: " <domain>",
   retry: " <domain>",
   doctor: " <run-dir>",
@@ -217,6 +238,9 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
   let evalJs: string | null = null
   let olderThan: number | null = null
   let mobileProfile: MobileProfile | null = null
+  let storageState: string | null = null
+  let httpCredentials: { username: string; password: string } | null = null
+  const headers: Record<string, string> = {}
   const clicks: string[] = []
 
   const flagSet = new Set([
@@ -250,6 +274,9 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
     "--eval",
     "--older-than",
     "--mobile-profile",
+    "--storage-state",
+    "--header",
+    "--http-credentials",
   ])
   const args: string[] = []
   for (let i = 1; i < argv.length; i++) {
@@ -296,7 +323,11 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
           )
         }
         mobileProfile = v
-      }
+      } else if (a === "--storage-state") storageState = resolveStorageStatePath(v)
+      else if (a === "--header") {
+        const [name, value] = parseHeaderFlag(v)
+        headers[name] = value
+      } else if (a === "--http-credentials") httpCredentials = parseHttpCredentials(v)
       continue
     }
     if (a.startsWith("-")) {
@@ -317,8 +348,13 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
     )
   }
 
-  if (outFile !== null && sub !== "shot") {
-    throw invalidOption("--out-file は shot コマンドでのみ使用できます", "単一ファイル出力は sitesnap shot で指定してください。")
+  if (outFile !== null && sub !== "shot" && sub !== "login") {
+    throw invalidOption("--out-file は shot / login コマンドでのみ使用できます", "単一ファイル出力は sitesnap shot または login で指定してください。")
+  }
+
+  // 環境変数フォールバック: フラグ明示が優先。シェル履歴に残したくない場合に使う
+  if (!httpCredentials && env.SITESNAP_HTTP_CREDENTIALS) {
+    httpCredentials = parseHttpCredentials(env.SITESNAP_HTTP_CREDENTIALS)
   }
   if (outFile !== null && outFlagGiven) {
     throw invalidOption("--out と --out-file は同時に指定できません", "出力先ディレクトリか出力ファイルのどちらか一方で指定してください。")
@@ -350,6 +386,9 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.en
       waitMs: waitMs ?? undefined,
       preScroll: preScroll ?? undefined,
       mobileProfile: mobileProfile ?? undefined,
+      storageState: storageState ?? undefined,
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
+      httpCredentials: httpCredentials ?? undefined,
     },
     shotOptions: { vp, device, selector, settleMs, full, props, label, clicks, evalJs },
     limit,

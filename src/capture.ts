@@ -4,6 +4,7 @@ import { type Browser } from "playwright"
 import { mkdir, stat } from "node:fs/promises"
 import { existsSync } from "node:fs"
 import path from "node:path"
+import { authContextOptions, type AuthOptions } from "./auth.ts"
 import { DEFAULTS, MOBILE_PROFILE_BROAD, MOBILE_VARIANT_SUBDIRS, type MobileProfile } from "./config.ts"
 import { defaultMobileDeviceName, deviceContextOptions } from "./devices.ts"
 import { assertPublicUrl } from "./url-guard.ts"
@@ -15,7 +16,7 @@ export interface HostRateLimiter {
   wait(host: string): Promise<void>
 }
 
-export interface CaptureOptions {
+export interface CaptureOptions extends AuthOptions {
   outDir?: string
   concurrency?: number
   forceVisible?: boolean
@@ -220,6 +221,26 @@ export async function closeChromium(browser: Browser): Promise<void> {
   await browser.close()
 }
 
+// ナビゲーション成功の条件を networkidle にしない。広告・アナリティクスが
+// 常時通信するサイト (メディアサイト等) は 500ms の無通信が発生せず、
+// waitUntil: "networkidle" だと goto ごとタイムアウトする。
+// load で完了とし、networkidle は上限付きのベストエフォート待ちに格下げする
+// (静かなサイトは従来どおり idle まで待ってから撮る)
+export async function gotoAndSettle(
+  page: import("playwright").Page,
+  url: string,
+  opts: { timeout?: number; idleTimeoutMs?: number } = {}
+): Promise<import("playwright").Response | null> {
+  const response = await page.goto(url, {
+    waitUntil: "load",
+    timeout: opts.timeout ?? DEFAULTS.navigationTimeout,
+  })
+  await page
+    .waitForLoadState("networkidle", { timeout: opts.idleTimeoutMs ?? DEFAULTS.networkIdleTimeout })
+    .catch(() => {})
+  return response
+}
+
 export async function autoScroll(page: import("playwright").Page): Promise<void> {
   await page.evaluate(
     async ({ step, interval }) => {
@@ -288,6 +309,7 @@ async function captureOne(
 
   const ctx = await browser.newContext({
     ...contextOptionsFor(mode, device),
+    ...authContextOptions(opts),
     locale: DEFAULTS.locale,
     timezoneId: DEFAULTS.timezone,
     reducedMotion: "reduce",
@@ -296,7 +318,7 @@ async function captureOne(
   let title = ""
   let httpStatus: number | undefined
   try {
-    const response = await page.goto(url, { waitUntil: "networkidle", timeout: DEFAULTS.navigationTimeout })
+    const response = await gotoAndSettle(page, url)
     httpStatus = response?.status()
     title = await page.title()
 

@@ -13,6 +13,8 @@ export type ErrorCode =
   | "UNKNOWN_DEVICE"
   | "ELEMENT_NOT_FOUND"
   | "INTERACTION_FAILED"
+  | "STORAGE_STATE_NOT_FOUND"
+  | "STORAGE_STATE_INVALID"
 
 export interface ErrorContext {
   url?: string

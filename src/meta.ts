@@ -46,11 +46,13 @@ export interface BuildSiteMetaOptions {
   source?: string | null
   results?: CaptureResult[]
   mobileProfile?: MobileProfile
+  // title 補完 fetch 用の追加ヘッダ (認証下のページ向け)
+  fetchHeaders?: Record<string, string>
 }
 
-async function fetchTitle(url: string): Promise<string> {
+async function fetchTitle(url: string, headers?: Record<string, string>): Promise<string> {
   try {
-    const res = await fetch(url, { headers: { "user-agent": USER_AGENT } })
+    const res = await fetch(url, { headers: { "user-agent": USER_AGENT, ...(headers || {}) } })
     const html = await res.text()
     const m = html.match(/<title[^>]*>([^<]*)<\/title>/i)
     return m ? m[1]!.trim().replace(/\s+/g, " ") : ""
@@ -66,6 +68,7 @@ export async function buildSiteMeta({
   source,
   results,
   mobileProfile,
+  fetchHeaders,
 }: BuildSiteMetaOptions): Promise<SiteMeta> {
   const metaPath = path.join(siteDir, "meta.json")
 
@@ -95,7 +98,7 @@ export async function buildSiteMeta({
 
     let title = titleByUrl.get(url) || ""
     if (dResult?.title) title = dResult.title
-    if (!title) title = await fetchTitle(url)
+    if (!title) title = await fetchTitle(url, fetchHeaders)
 
     const page: PageMeta = {
       url,

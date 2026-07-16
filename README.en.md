@@ -71,6 +71,7 @@ sitesnap list
 | `sitesnap open <domain>` | Open the site's folder in Finder |
 | `sitesnap retry <domain>` | Re-capture pages that failed previously |
 | `sitesnap doctor <run-dir>` | Diagnose a capture run and generate retry or agent handoff files |
+| `sitesnap login <url>` | Log in interactively in a browser and save the session → reuse via `--storage-state` |
 | `sitesnap help` | Show help |
 
 ### Flags
@@ -90,6 +91,24 @@ sitesnap list
 | `--min-interval <ms>` | 0 | Minimum delay between requests to the same host |
 | `--strict` | off | Exit with non-zero status if any page failed to capture |
 | `--allow-private` | off | Allow loopback / RFC1918 / link-local hosts |
+
+### Authentication flags (site / page / shot / inspect / check / retry)
+
+| Flag | Default | Description |
+|---|---|---|
+| `--storage-state <file>` | off | Load a Playwright storage state JSON (cookies + localStorage). Create one with `sitesnap login <url> -o <file>` |
+| `--header "Name: value"` | off | Send an extra header on every request (repeatable), e.g. `--header "Authorization: Bearer TOKEN"` |
+| `--http-credentials <user:pass>` | off | HTTP Basic auth (staging environments). Also via the `SITESNAP_HTTP_CREDENTIALS` env var |
+
+```bash
+# Once: a browser opens — log in, then press Enter in the terminal to save auth.json
+sitesnap login https://app.example.com/login -o auth.json
+# From then on, capture and check with that session
+sitesnap shot  https://app.example.com/dashboard --storage-state auth.json --json
+sitesnap check https://app.example.com/dashboard --storage-state auth.json --json
+```
+
+> ⚠️ The storage state file **is** your login session. Add it to `.gitignore` and never share it. Run artifacts (options.json) record header values and credentials as `<redacted>`.
 
 ### shot / inspect / check flags
 

@@ -26,6 +26,7 @@ sitesnap clean [host]                 # Delete accumulated shots (archives untou
 sitesnap open <domain>                # Open site folder in Finder
 sitesnap retry <domain>               # Retry failed pages
 sitesnap doctor <run-dir>             # Diagnose a capture run, suggest a retry
+sitesnap login <url>                  # Interactive login → save session for --storage-state
 sitesnap help                         # Help
 sitesnap --version                    # Version
 ```
@@ -214,6 +215,28 @@ sitesnap doctor sites/example.com/runs/latest --agent-task --json
 | `DOMAIN_NOT_FOUND` | Run `sitesnap list` to see captured domains |
 | `META_NOT_FOUND` | Re-run capture for the domain |
 | `RUN_DIR_NOT_FOUND` | Pass the `runs/latest` dir printed by site/page/retry |
+| `STORAGE_STATE_NOT_FOUND` | Check the `--storage-state` path; ask the user to run `sitesnap login <url> -o <file>` |
+| `STORAGE_STATE_INVALID` | Storage state file is corrupt; recreate it with `sitesnap login` |
+
+## Authenticated sites
+
+Identify the auth scheme from a plain `shot`'s JSON (`http_status` / `title`), then pick the flag:
+
+| Symptom | Scheme | Flag |
+|---|---|---|
+| `http_status: 401` with a Basic auth prompt (common on staging) | HTTP Basic | `--http-credentials user:pass` (or `SITESNAP_HTTP_CREDENTIALS` env var) |
+| `401/403` and you hold an API token | Header auth | `--header "Authorization: Bearer TOKEN"` (repeatable) |
+| Redirected to a login page (`title` says Login / Sign in) | Form / SSO login | `sitesnap login` → `--storage-state` |
+
+Form/SSO login must be done by the human once — agents cannot log in themselves:
+
+```bash
+sitesnap login https://app.example.com/login -o auth.json
+# browser opens → user logs in → presses Enter in the terminal → auth.json saved
+sitesnap shot https://app.example.com/dashboard --storage-state auth.json --json
+```
+
+The state file works with every capture command (shot / check / inspect / site / page / retry). Secrets hygiene: the state file **is** the login session — have the user gitignore it, never echo tokens or credentials into reports, and note that run artifacts (options.json) store auth values as `<redacted>`. If captures return 401/403 again, the session expired — ask the user to re-run `sitesnap login`.
 
 ## Common tasks
 
@@ -240,6 +263,12 @@ sitesnap retry example.com --force-visible --wait-ms 1000 --json
 ### Generate diagnosis files
 ```bash
 sitesnap doctor sites/example.com/runs/latest --agent-task --json
+```
+
+### Capture behind login
+```bash
+sitesnap login https://app.example.com/login -o auth.json   # run by the user, once
+sitesnap shot https://app.example.com/dashboard --storage-state auth.json --json
 ```
 
 ## Best practices for AI agents

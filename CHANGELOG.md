@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-16
+
+### Added
+- **Authenticated captures.** Three new flags, shared by `site` / `page` / `shot` / `inspect` / `check` / `retry`:
+  - `--storage-state <file>` loads a Playwright storage state JSON (cookies + localStorage) into the browser context. Invalid or missing files fail fast with the new structured errors `STORAGE_STATE_NOT_FOUND` / `STORAGE_STATE_INVALID`.
+  - `--header "Name: value"` (repeatable) sends extra headers on every request — Bearer tokens, fixed cookies, proxy auth. Also applied to sitemap and title fetches.
+  - `--http-credentials <user:pass>` answers HTTP Basic auth challenges; also settable via the `SITESNAP_HTTP_CREDENTIALS` env var to keep credentials out of shell history. Sitemap/title fetches send the matching `Authorization: Basic` header.
+- **`sitesnap login <url>`**: opens a headed browser so a human can log in (forms, SSO); pressing Enter in the terminal saves the session to a storage state file (`-o <path>`, default `./sitesnap-state.json`) ready for `--storage-state`.
+
+### Fixed
+- **Navigation no longer gambles on `networkidle`.** Sites with continuous ad/analytics traffic (news and media sites) never produce the 500ms network gap Playwright's `waitUntil: "networkidle"` requires, so `site` / `page` / `shot` / `inspect` / `check` timed out on them at random (observed: 500+ requests in the 20s after `load` on one media homepage). Navigation now completes on `load`, then waits for `networkidle` as a best effort capped at 10s (`networkIdleTimeout`) — quiet pages behave exactly as before, busy pages proceed to capture instead of failing.
+
+### Security
+- Run artifacts (`options.json`) redact header values and HTTP credentials as `<redacted>` so secrets never land in captured archives.
+
 ## [0.6.5] - 2026-07-07
 
 ### Added

@@ -1,12 +1,16 @@
 /// <reference lib="dom" />
 import { createRequire } from "node:module"
-import { closeChromium, FREEZE_ANIMATIONS_CSS, launchChromium } from "./capture.ts"
+import { authContextOptions } from "./auth.ts"
+import { closeChromium, FREEZE_ANIMATIONS_CSS, gotoAndSettle, launchChromium } from "./capture.ts"
 import { DEFAULTS } from "./config.ts"
 import { assertPublicUrl } from "./url-guard.ts"
 import { resolvedViewport, shotContextOptions, type ShotOptions, type Viewport } from "./shot.ts"
 
 export interface CheckOptions
-  extends Pick<ShotOptions, "vp" | "device" | "settleMs" | "allowPrivate" | "browser"> {}
+  extends Pick<
+    ShotOptions,
+    "vp" | "device" | "settleMs" | "allowPrivate" | "browser" | "storageState" | "headers" | "httpCredentials"
+  > {}
 
 export interface OverflowCheck {
   pass: boolean
@@ -66,6 +70,7 @@ export async function checkUrl(url: string, opts: CheckOptions = {}): Promise<Ch
   try {
     ctx = await browser.newContext({
       ...shotContextOptions(opts),
+      ...authContextOptions(opts),
       locale: DEFAULTS.locale,
       timezoneId: DEFAULTS.timezone,
       ...(settle === null ? { reducedMotion: "reduce" as const } : {}),
@@ -89,10 +94,7 @@ export async function checkUrl(url: string, opts: CheckOptions = {}): Promise<Ch
       }
     })
 
-    const response = await page.goto(url, {
-      waitUntil: "networkidle",
-      timeout: DEFAULTS.navigationTimeout,
-    })
+    const response = await gotoAndSettle(page, url)
     const title = await page.title()
 
     if (settle === null) {

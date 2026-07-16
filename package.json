@@ -1,6 +1,6 @@
 {
   "name": "@hayashiii/sitesnap",
-  "version": "0.6.5",
+  "version": "0.7.0",
   "description": "AI-agent-friendly Playwright CLI to screenshot, check (overflow/console/a11y), and inspect local UI in a dev loop — with pre-shot DOM interaction, sitemap bulk capture, and per-domain archives.",
   "type": "module",
   "bin": {

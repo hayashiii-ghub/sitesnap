@@ -2,6 +2,7 @@ import { spawn } from "node:child_process"
 import { existsSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
+import { authFetchHeaders, redactAuthOptions } from "./auth.ts"
 import { captureUrls } from "./capture.ts"
 import { checkUrl } from "./check.ts"
 import type { CliContext } from "./cli-args.ts"
@@ -10,6 +11,7 @@ import { analyzeRunDirectory, writeDoctorFiles, writeRunArtifacts } from "./doct
 import { buildIndex, buildSiteMeta, type SiteMeta } from "./meta.ts"
 import { inspectUrl } from "./inspect.ts"
 import { formatSuccess } from "./output.ts"
+import { runLogin } from "./login.ts"
 import { captureShot } from "./shot.ts"
 import { listShots, pruneShots } from "./shot-store.ts"
 import { expandSitemap } from "./sitemap.ts"
@@ -22,8 +24,10 @@ export interface CommandResult {
 
 export type CommandHandler = (ctx: CliContext) => Promise<CommandResult>
 
+// run 成果物 (options.json) に書く設定。ヘッダ値や Basic 認証などの
+// シークレットはディスクに残さないよう redact する
 function artifactOptions(ctx: CliContext): Record<string, unknown> {
-  return { ...ctx.captureOptions }
+  return { ...redactAuthOptions(ctx.captureOptions) }
 }
 
 async function readMeta(ctx: CliContext, domain: string): Promise<SiteMeta | null> {
@@ -63,7 +67,11 @@ async function cmdSite(ctx: CliContext): Promise<CommandResult> {
     throw missingArg("site <sitemap-url>")
   }
   const logs = [`sitemapを展開中: ${sitemapUrl}`]
-  let urls = await expandSitemap(sitemapUrl, { allowPrivate: ctx.captureOptions.allowPrivate })
+  const fetchHeaders = authFetchHeaders(ctx.captureOptions, {})
+  let urls = await expandSitemap(sitemapUrl, {
+    allowPrivate: ctx.captureOptions.allowPrivate,
+    headers: fetchHeaders,
+  })
   logs.push(`${urls.length} 件のURLを検出`)
   if (ctx.exclude) {
     const before = urls.length
@@ -97,6 +105,7 @@ async function cmdSite(ctx: CliContext): Promise<CommandResult> {
     source: sitemapUrl,
     results,
     mobileProfile: ctx.captureOptions.mobileProfile,
+    fetchHeaders,
   })
   await buildIndex(ctx.outDir)
   const captured = meta.pages.filter((p) => p.desktop || p.mobile).length
@@ -147,6 +156,7 @@ async function cmdPage(ctx: CliContext): Promise<CommandResult> {
     source: null,
     results,
     mobileProfile: ctx.captureOptions.mobileProfile,
+    fetchHeaders: authFetchHeaders(ctx.captureOptions, {}),
   })
   await buildIndex(ctx.outDir)
   const page = meta.pages.find((p) => p.url === url)
@@ -187,6 +197,9 @@ async function cmdShot(ctx: CliContext): Promise<CommandResult> {
     allowPrivate: ctx.captureOptions.allowPrivate,
     allowFile: ctx.captureOptions.allowFile,
     forceVisible: ctx.captureOptions.forceVisible,
+    storageState: ctx.captureOptions.storageState,
+    headers: ctx.captureOptions.headers,
+    httpCredentials: ctx.captureOptions.httpCredentials,
   })
   return out(
     ctx,
@@ -208,6 +221,9 @@ async function cmdInspect(ctx: CliContext): Promise<CommandResult> {
     props: ctx.shotOptions.props ?? undefined,
     limit: ctx.limit,
     allowPrivate: ctx.captureOptions.allowPrivate,
+    storageState: ctx.captureOptions.storageState,
+    headers: ctx.captureOptions.headers,
+    httpCredentials: ctx.captureOptions.httpCredentials,
   })
   return out(
     ctx,
@@ -234,6 +250,9 @@ async function cmdCheck(ctx: CliContext): Promise<CommandResult> {
     device: ctx.shotOptions.device,
     settleMs: ctx.shotOptions.settleMs,
     allowPrivate: ctx.captureOptions.allowPrivate,
+    storageState: ctx.captureOptions.storageState,
+    headers: ctx.captureOptions.headers,
+    httpCredentials: ctx.captureOptions.httpCredentials,
   })
   const result = out(
     ctx,
@@ -252,6 +271,30 @@ async function cmdCheck(ctx: CliContext): Promise<CommandResult> {
     }
   )
   return withExitCode(result, ctx.strict && !report.pass ? 1 : 0)
+}
+
+async function cmdLogin(ctx: CliContext): Promise<CommandResult> {
+  const url = ctx.args[0]
+  if (!url) {
+    throw missingArg("login <url>")
+  }
+  const result = await runLogin(url, {
+    outFile: ctx.outFile,
+    allowPrivate: ctx.captureOptions.allowPrivate,
+  })
+  return out(
+    ctx,
+    { ...result, hint: `--storage-state ${result.file} を付けると、この状態で撮影できます。ファイルはシークレットなので .gitignore に追加してください。` },
+    (r) =>
+      [
+        `ログイン状態を保存しました: ${r.file} (cookies: ${r.cookies}, origins: ${r.origins})`,
+        "",
+        "この状態で撮影するには:",
+        `  sitesnap shot <url> --storage-state ${r.file} --json`,
+        "",
+        "注意: このファイルはログインセッションそのものです。.gitignore に追加し、共有しないでください。",
+      ].join("\n")
+  )
 }
 
 async function cmdList(ctx: CliContext): Promise<CommandResult> {
@@ -346,6 +389,7 @@ async function cmdRetry(ctx: CliContext): Promise<CommandResult> {
     source: meta.source,
     results,
     mobileProfile: ctx.captureOptions.mobileProfile,
+    fetchHeaders: authFetchHeaders(ctx.captureOptions, {}),
   })
   await buildIndex(ctx.outDir)
   const stillFailing = newMeta.pages.filter(
@@ -447,6 +491,7 @@ export function buildCommands(): Record<string, CommandHandler> {
     shot: cmdShot,
     inspect: cmdInspect,
     check: cmdCheck,
+    login: cmdLogin,
     list: cmdList,
     open: cmdOpen,
     retry: cmdRetry,

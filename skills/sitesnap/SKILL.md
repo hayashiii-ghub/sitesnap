@@ -1,6 +1,6 @@
 ---
 name: sitesnap
-description: AIエージェント/開発者がローカルUIを撮って・測って・直すための Playwright スクリーンショット CLI。shot(単発撮影)→check(overflow/console/a11y 合否)→inspect(要素の数値検証)の開発ループが主用途。撮影前の --click/--eval/--label でCSSタブや details の状態違いも撮り分け、--allow-file で file:// モックを直撮り。sitemap 一括キャプチャやポートフォリオ収集にも使える。
+description: AIエージェント/開発者がローカルUIを撮って・測って・直すための Playwright スクリーンショット CLI。shot(単発撮影)→check(overflow/console/a11y 合否)→inspect(要素の数値検証)の開発ループが主用途。撮影前の --click/--eval/--label でCSSタブや details の状態違いも撮り分け、--allow-file で file:// モックを直撮り。認証付きサイトは login / --storage-state / --header / --http-credentials で撮影できる。sitemap 一括キャプチャやポートフォリオ収集にも使える。
 ---
 
 # sitesnap Skill
@@ -12,6 +12,7 @@ description: AIエージェント/開発者がローカルUIを撮って・測�
 - **レイアウトの数値検証**（computed style・寸法・はみ出し量を確認したいとき → `inspect`。スクショ目視より確実）
 - **撮影前の状態指定**（CSSラジオタブや `<details>` の開閉を `--click`/`--eval` で。`file://` モックは `--allow-file` で直撮り → `shot`）
 - ユーザーがWebサイトのスクリーンショットを撮りたい / sitemap.xml から全ページを一括キャプチャ / ポートフォリオ用に収集したいとき（`site` / `page`）
+- **ログイン・Basic認証・トークンが必要なページを撮りたいとき**（`login` + `--storage-state` / `--header` / `--http-credentials`。下の「認証が必要なサイト」参照）
 - キャプチャ失敗の診断や再取得方針を出したいとき（`doctor`）
 
 ## How to invoke
@@ -111,6 +112,48 @@ sitesnap clean localhost_3000 --json
 ```
 `clean` は **`shots/` だけ**を対象にし、`site`/`page` のアーカイブ（`desktop/` `mobile/` `meta.json`）には一切触れない。破壊操作なので**まず `--dry-run`** で対象を確認するのが安全。
 
+### 認証が必要なサイト（ログイン / Basic認証 / トークン）
+
+まず認証方式を判別する。`shot` の JSON の `http_status` と `title` を見る:
+
+| 症状 | 認証方式 | 使うフラグ |
+|---|---|---|
+| `http_status: 401` + Basic認証ダイアログ(ステージングでよくある) | HTTP Basic | `--http-credentials user:pass` |
+| `http_status: 401/403` で API トークンが手元にある | ヘッダ認証 | `--header "Authorization: Bearer TOKEN"` |
+| ログインページにリダイレクトされる(`title` が Login/Sign in 等) | フォーム/SSOログイン | `sitesnap login` → `--storage-state` |
+
+**手順1: Basic認証（ステージング環境など）**
+```bash
+sitesnap shot https://staging.example.com/ --http-credentials user:pass --json
+# シェル履歴に残したくない場合は環境変数で
+SITESNAP_HTTP_CREDENTIALS=user:pass sitesnap site https://staging.example.com/sitemap.xml --json
+```
+
+**手順2: トークン/固定ヘッダ**（`--header` は繰り返し可。全リクエストに付く）
+```bash
+sitesnap shot https://api.example.com/dashboard --header "Authorization: Bearer TOKEN" --json
+```
+
+**手順3: フォームログイン / SSO（Google ログイン等）**
+
+エージェントは自分でログインできないので、**ユーザーに1度だけ実行してもらう**:
+```bash
+sitesnap login https://app.example.com/login -o auth.json
+# → ブラウザが開く → ユーザーがログイン → ターミナルで Enter → auth.json に保存
+```
+以降は全コマンド（shot / check / inspect / site / page / retry）で使い回せる:
+```bash
+sitesnap shot  https://app.example.com/dashboard --storage-state auth.json --json
+sitesnap check https://app.example.com/dashboard --storage-state auth.json --json
+```
+
+**シークレットの扱い（必ず守る）**:
+- `auth.json`(storage state)はログインセッションそのもの。**`.gitignore` に追加**し、`sites/` などコミットされる場所に置かない
+- `--header` のトークンや `user:pass` を結果報告・コミットメッセージに書かない
+- run 成果物(options.json)にはヘッダ値・認証情報は `<redacted>` で保存される(パスは残る)
+
+**ログインしても 401/403 に戻る場合**: セッション期限切れ。`sitesnap login` をやり直してもらう。
+
 ### サーバーに優しく一括キャプチャ
 ```bash
 sitesnap site https://example.com/sitemap.xml --concurrency 3 --min-interval 250 --json
@@ -140,6 +183,9 @@ sitesnap doctor sites/example.com/runs/latest --agent-task --json
 - `ELEMENT_NOT_FOUND`: セレクタを確認、または `--settle` で描画完了を待つ
 - `INTERACTION_FAILED`: `--click` 対象が無い / `--eval` が例外。セレクタやJSを確認、`--settle` で描画完了を待つ
 - `INVALID_URL`（file://）: ローカルHTMLを直撮りするなら `--allow-file` を付ける
+- `STORAGE_STATE_NOT_FOUND`: `--storage-state` のパスを確認。無ければ `sitesnap login <url> -o <file>` をユーザーに実行してもらう
+- `STORAGE_STATE_INVALID`: storage state が壊れている。`sitesnap login` で作り直す
+- `http_status` が 401/403 のまま: 認証方式の判別からやり直す（上の「認証が必要なサイト」の表）。storage state 使用中ならセッション切れの可能性 → `login` をやり直す
 
 ## Best practices
 
@@ -148,5 +194,7 @@ sitesnap doctor sites/example.com/runs/latest --agent-task --json
 - 失敗時は `errors` を読み、推測だけで再実行しない
 - 大量取得では `--concurrency` と `--min-interval` を控えめにする
 - `doctor --agent-task` は調査ファイル生成のみで、外部agentやWebwrightは同梱しない
+- `sitesnap login` はユーザーが対話的に実行するコマンド。エージェントはコマンドを提示して完了を待ち、代わりに実行しようとしない
+- storage state ファイルやトークンの中身を読み上げたりログに残したりしない
 
 詳細は `AGENTS.md` を参照。

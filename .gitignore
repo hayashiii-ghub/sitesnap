@@ -3,3 +3,5 @@ sites/
 .DS_Store
 note-draft.md
 dist/
+# sitesnap login の既定の保存先。storage state はログインセッションそのものなのでコミットしない
+sitesnap-state.json
