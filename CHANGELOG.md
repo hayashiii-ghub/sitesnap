@@ -7,11 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-- **Release gate no longer breaks on npm 12.** `npm pack --json` changed its output from an array to an object keyed by package name in npm 12.0.1, so `pack:smoke` read an empty file list and failed with "npm package is missing dist/cli.js" even though the tarball was correct. Since the release workflow installed `npm@latest`, this blocked publishing. The script now accepts both shapes.
+## [1.0.0] - 2026-07-24
+
+### Added
+- One collection entry point: `capture <url>`, `capture --sitemap <url>`, or `capture --input <file|->`.
+- Schema-v1 cumulative `manifest.json`, per-run `runs/latest.json`, and root `index.json` artifacts.
+- Multi-host URL-list collection with independent per-host archives and partial-failure reporting.
+- Archive index errors are isolated per directory, so valid archives remain listable beside corrupt or future-schema manifests.
+- Deterministic full-page desktop (1440×900) and mobile (Playwright iPhone 15) captures.
+- `retry <domain>` now retries only failed desktop/mobile captures from the manifest.
 
 ### Changed
-- **CI and release now pin the same npm major (`npm@^12`) and run `pack:smoke` on it.** Tracking `npm@latest` meant an npm major release could break publishing without any change on our side, and CI (which used the runner's default npm) could pass while the release failed on the same script. Bump the pin by hand so a PR's CI verifies the new major before a release depends on it.
+- Repositioned sitesnap as an AI-agent-first website collection/archive tool. Development-loop UI verification belongs to shimon.
+- Operational commands always emit JSON to stdout; `--json` remains an accepted compatibility no-op.
+- Capture failure is strict by default: `partial` and `failed` exit non-zero while preserving completed artifacts.
+- File names use a readable slug plus a 64-bit SHA-256 prefix to distinguish query and URL variants.
+- CI, release, and package smoke tests verify the v1 command and artifact contract.
+- **Release gate no longer breaks on npm 12.** `pack:smoke` accepts both historical `npm pack --json` response shapes.
+
+### Removed
+- Removed the 0.x `site`, `page`, `shot`, `check`, `inspect`, `doctor`, `clean`, and `open` commands.
+- Removed `meta.json`, disposable shot storage, UI health checks, DOM inspection, diagnosis files, broad mobile profiles, and the `axe-core` runtime dependency.
+
+### Security
+- DNS-aware SSRF protection now covers redirects, recursive sitemaps, browser subresources, and WebSockets, including special-use IPv4/IPv6 ranges.
+- Header and HTTP Basic credentials are restricted to one target origin and never forwarded cross-origin.
+- Authenticated sitemaps reject cross-origin page targets before browser work, and `login` saves storage state with mode `0600`.
+- Archive and manifest artifact paths are containment-checked.
+- Corrupt and unsupported manifests fail closed and are never silently overwritten.
+- Run artifacts redact header and Basic credential values.
+
+### Migration
+- `site <sitemap>` becomes `capture --sitemap <sitemap>`; `page <url>` becomes `capture <url>`.
+- v1 uses `manifest.json` instead of `meta.json`. Re-collect into a new output directory rather than mixing 0.x and 1.x archives.
+- CI and release pin the same npm major (`npm@^12`) so publishing behavior is tested before tag release.
 
 ## [0.7.0] - 2026-07-16
 

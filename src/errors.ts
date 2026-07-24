@@ -2,16 +2,17 @@ export type ErrorCode =
   | "INVALID_OPTION"
   | "INVALID_URL"
   | "PRIVATE_URL_BLOCKED"
+  | "URL_RESOLUTION_FAILED"
   | "SITEMAP_FETCH_FAILED"
   | "SITEMAP_PARSE_FAILED"
   | "SITEMAP_TOO_DEEP"
   | "SITEMAP_NOT_XML"
+  | "INPUT_READ_FAILED"
   | "BROWSER_LAUNCH_FAILED"
-  | "DOMAIN_NOT_FOUND"
-  | "META_NOT_FOUND"
-  | "RUN_DIR_NOT_FOUND"
+  | "MANIFEST_NOT_FOUND"
+  | "MANIFEST_INVALID"
+  | "MANIFEST_SCHEMA_UNSUPPORTED"
   | "UNKNOWN_DEVICE"
-  | "ELEMENT_NOT_FOUND"
   | "INTERACTION_FAILED"
   | "STORAGE_STATE_NOT_FOUND"
   | "STORAGE_STATE_INVALID"
@@ -38,11 +39,6 @@ export class SiteSnapError extends Error {
   }
 
   toJSON() {
-    return {
-      code: this.code,
-      message: this.message,
-      hint: this.hint,
-      ...this.context,
-    }
+    return { code: this.code, message: this.message, hint: this.hint, ...this.context }
   }
 }

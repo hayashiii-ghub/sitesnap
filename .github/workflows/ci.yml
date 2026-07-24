@@ -58,7 +58,7 @@ jobs:
           fi
           echo "OK: version is $version"
 
-      - name: Smoke test - list outputs valid JSON
+      - name: Smoke test - list outputs schema v1 JSON
         run: |
           node dist/cli.js list --json | node -e "
             let data = '';
@@ -66,8 +66,9 @@ jobs:
             process.stdin.on('end', () => {
               const parsed = JSON.parse(data);
               if (!parsed.success) { console.error('Expected success: true'); process.exit(1); }
-              if (!Array.isArray(parsed.sites)) { console.error('Expected sites array'); process.exit(1); }
-              console.log('OK: list returned array of', parsed.sites.length, 'sites');
+              if (parsed.schema_version !== 1) { console.error('Expected schema_version 1'); process.exit(1); }
+              if (!Array.isArray(parsed.archives)) { console.error('Expected archives array'); process.exit(1); }
+              console.log('OK: list returned array of', parsed.archives.length, 'archives');
             });
           "
 

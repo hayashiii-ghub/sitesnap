@@ -1,20 +1,23 @@
-import { spawn } from "node:child_process"
-import { existsSync } from "node:fs"
-import { readFile } from "node:fs/promises"
+import { mkdir } from "node:fs/promises"
 import path from "node:path"
 import { authFetchHeaders, redactAuthOptions } from "./auth.ts"
-import { captureUrls } from "./capture.ts"
-import { checkUrl } from "./check.ts"
+import {
+  archiveFileStem,
+  archiveSiteDir,
+  buildCaptureTasks,
+  captureTasks,
+  groupUrlsByHost,
+  type CaptureOptions,
+  type CaptureResult,
+  type CaptureTask,
+} from "./capture.ts"
 import type { CliContext } from "./cli-args.ts"
 import { SiteSnapError } from "./errors.ts"
-import { analyzeRunDirectory, writeDoctorFiles, writeRunArtifacts } from "./doctor.ts"
-import { buildIndex, buildSiteMeta, type SiteMeta } from "./meta.ts"
-import { inspectUrl } from "./inspect.ts"
-import { formatSuccess } from "./output.ts"
+import { loadCaptureUrls, parseCaptureSource, type CaptureSource, type RunSource } from "./input.ts"
 import { runLogin } from "./login.ts"
-import { captureShot } from "./shot.ts"
-import { listShots, pruneShots } from "./shot-store.ts"
-import { expandSitemap } from "./sitemap.ts"
+import { buildArchiveIndex, readArchiveManifest, writeArchiveManifest, type ArchiveIndex } from "./manifest.ts"
+import { captureFailureMessage, combineStatuses, SCHEMA_VERSION, statusFromResults, type CollectionStatus } from "./protocol.ts"
+import { writeRunArtifact } from "./run-artifact.ts"
 
 export interface CommandResult {
   exitCode: number
@@ -24,478 +27,347 @@ export interface CommandResult {
 
 export type CommandHandler = (ctx: CliContext) => Promise<CommandResult>
 
-// run 成果物 (options.json) に書く設定。ヘッダ値や Basic 認証などの
-// シークレットはディスクに残さないよう redact する
-function artifactOptions(ctx: CliContext): Record<string, unknown> {
-  return { ...redactAuthOptions(ctx.captureOptions) }
+interface ArchiveRunResult {
+  domain: string
+  status: CollectionStatus
+  archive_status: CollectionStatus | null
+  run_status: CollectionStatus
+  requested: number
+  succeeded: number
+  failed: number
+  manifest: string | null
+  run_artifact: string | null
+  error?: string
 }
 
-async function readMeta(ctx: CliContext, domain: string): Promise<SiteMeta | null> {
-  const p = path.join(ctx.outDir, domain, "meta.json")
-  if (!existsSync(p)) return null
-  return JSON.parse(await readFile(p, "utf8"))
+function json(data: Record<string, unknown>, exitCode = 0, stderr = ""): CommandResult {
+  return { exitCode, stdout: JSON.stringify(data), stderr }
 }
 
-function out(
-  ctx: CliContext,
-  data: Record<string, unknown>,
-  humanFn?: (data: Record<string, unknown>) => string
-): CommandResult {
-  if (ctx.json) {
-    return ok(formatSuccess(data, "json"))
+function missingArg(usage: string): never {
+  throw new SiteSnapError("INVALID_OPTION", "引数が不足しています", `使い方: sitesnap ${usage}`)
+}
+
+function runOptions(ctx: CliContext): Record<string, unknown> {
+  const safe = redactAuthOptions(ctx.captureOptions)
+  return {
+    out_dir: ctx.outDir,
+    concurrency: safe.concurrency ?? null,
+    force_visible: safe.forceVisible ?? false,
+    wait_ms: safe.waitMs ?? 0,
+    pre_scroll: safe.preScroll ?? "full-page",
+    allow_private: safe.allowPrivate ?? false,
+    storage_state: safe.storageState ?? null,
+    headers: safe.headers ?? null,
+    http_credentials: safe.httpCredentials ?? null,
   }
-  return ok(humanFn ? humanFn(data) : "")
 }
 
-function ok(stdout = "", stderr = ""): CommandResult {
-  return { exitCode: 0, stdout, stderr }
-}
-
-// 引数不足は INVALID_OPTION として投げ、cli.ts 側で他のエラーと同じ
-// {success:false,error:{...}} envelope (--json) / [CODE] message 形式に揃える。
-function missingArg(usage: string): SiteSnapError {
-  return new SiteSnapError("INVALID_OPTION", "引数が不足しています", `使い方: sitesnap ${usage}`)
-}
-
-function withExitCode(result: CommandResult, exitCode: number): CommandResult {
-  return { ...result, exitCode }
-}
-
-async function cmdSite(ctx: CliContext): Promise<CommandResult> {
-  const sitemapUrl = ctx.args[0]
-  if (!sitemapUrl) {
-    throw missingArg("site <sitemap-url>")
+function originForAuthentication(urls: string[], options: CaptureOptions, source?: CaptureSource): string | undefined {
+  const hasScopedAuthentication = Boolean(options.httpCredentials || (options.headers && Object.keys(options.headers).length > 0))
+  if (!hasScopedAuthentication) return undefined
+  const origins = [...new Set(urls.map((url) => new URL(url).origin))]
+  if (source?.kind === "sitemap") {
+    const sitemapOrigin = new URL(source.value).origin
+    if (origins.some((origin) => origin !== sitemapOrigin)) {
+      throw new SiteSnapError(
+        "INVALID_OPTION",
+        "認証付きsitemapでは全ページをsitemapと同じoriginにしてください",
+        "別originのページは認証情報を付けない別のcaptureとして実行してください。"
+      )
+    }
+    return sitemapOrigin
   }
-  const logs = [`sitemapを展開中: ${sitemapUrl}`]
-  const fetchHeaders = authFetchHeaders(ctx.captureOptions, {})
-  let urls = await expandSitemap(sitemapUrl, {
-    allowPrivate: ctx.captureOptions.allowPrivate,
-    headers: fetchHeaders,
-  })
-  logs.push(`${urls.length} 件のURLを検出`)
+  if (origins.length !== 1) {
+    throw new SiteSnapError(
+      "INVALID_OPTION",
+      "認証付きcaptureでは全URLを同じoriginにしてください",
+      "originごとに入力を分けて実行してください。認証情報は別originへ転送されません。"
+    )
+  }
+  return origins[0]
+}
+
+function failedResults(tasks: CaptureTask[], error: unknown): CaptureResult[] {
+  const message = error instanceof Error ? error.message : String(error)
+  const capturedAt = new Date().toISOString()
+  return tasks.map((task) => ({
+    url: task.url,
+    mode: task.mode,
+    ...(task.device ? { device: task.device } : {}),
+    slug: archiveFileStem(task.url),
+    capturedAt,
+    error: message,
+  }))
+}
+
+async function collectHost(options: {
+  ctx: CliContext
+  domain: string
+  tasks: CaptureTask[]
+  runSource: RunSource
+  manifestSource?: CaptureSource
+  authOrigin?: string
+  logs: string[]
+}): Promise<ArchiveRunResult> {
+  const { ctx, domain, tasks, runSource, manifestSource, authOrigin, logs } = options
+  let siteDir: string
+  try {
+    siteDir = archiveSiteDir(ctx.outDir, domain)
+  } catch (error) {
+    return {
+      domain,
+      status: "failed",
+      archive_status: null,
+      run_status: "failed",
+      requested: tasks.length,
+      succeeded: 0,
+      failed: tasks.length,
+      manifest: null,
+      run_artifact: null,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+
+  try {
+    const existing = await readArchiveManifest(siteDir)
+    if (existing && existing.domain !== domain) {
+      throw new SiteSnapError(
+        "MANIFEST_INVALID",
+        `manifestのdomainがarchiveと一致しません: ${existing.domain}`,
+        "archiveのmanifestを修復するか別の--outを指定してください。既存artifactは変更されません。"
+      )
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    logs.push(`[${domain}] manifest preflight error: ${message}`)
+    return {
+      domain,
+      status: "failed",
+      archive_status: null,
+      run_status: "failed",
+      requested: tasks.length,
+      succeeded: 0,
+      failed: tasks.length,
+      manifest: null,
+      run_artifact: null,
+      error: message,
+    }
+  }
+
+  let results: CaptureResult[]
+  try {
+    const captured = await captureTasks(domain, tasks, {
+      ...ctx.captureOptions,
+      outDir: ctx.outDir,
+      rateLimiter: ctx.rateLimiter,
+      authOrigin,
+      onLog: (message) => logs.push(message),
+    })
+    siteDir = captured.siteDir
+    results = captured.results
+  } catch (error) {
+    logs.push(`[${domain}] ${error instanceof Error ? error.message : String(error)}`)
+    results = failedResults(tasks, error)
+  }
+
+  const runStatus = statusFromResults(results)
+  const failed = results.filter((result) => captureFailureMessage(result)).length
+  let manifest: Awaited<ReturnType<typeof writeArchiveManifest>>
+  const manifestPath = path.join(siteDir, "manifest.json")
+  try {
+    await mkdir(siteDir, { recursive: true })
+    manifest = await writeArchiveManifest({ domain, siteDir, source: manifestSource, results })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    logs.push(`[${domain}] archive manifest error: ${message}`)
+    return {
+      domain,
+      status: "failed",
+      archive_status: null,
+      run_status: runStatus,
+      requested: results.length,
+      succeeded: results.length - failed,
+      failed,
+      manifest: null,
+      run_artifact: null,
+      error: message,
+    }
+  }
+
+  try {
+    const runArtifact = await writeRunArtifact({
+      domain,
+      siteDir,
+      source: runSource,
+      archiveStatus: manifest.status,
+      results,
+      runOptions: runOptions(ctx),
+    })
+    return {
+      domain,
+      status: manifest.status,
+      archive_status: manifest.status,
+      run_status: runStatus,
+      requested: results.length,
+      succeeded: results.length - failed,
+      failed,
+      manifest: manifestPath,
+      run_artifact: runArtifact,
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    logs.push(`[${domain}] run artifact error: ${message}`)
+    return {
+      domain,
+      status: combineStatuses([manifest.status, "failed"]),
+      archive_status: manifest.status,
+      run_status: runStatus,
+      requested: results.length,
+      succeeded: results.length - failed,
+      failed,
+      manifest: manifestPath,
+      run_artifact: null,
+      error: message,
+    }
+  }
+}
+
+function applyFilters(ctx: CliContext, urls: string[]): string[] {
+  let filtered = urls
   if (ctx.exclude) {
-    const before = urls.length
-    urls = urls.filter((u) => !ctx.exclude!.test(u))
-    logs.push(`--exclude 適用後: ${urls.length} 件のURL (${before - urls.length} 件除外)`)
+    filtered = filtered.filter((url) => {
+      ctx.exclude!.lastIndex = 0
+      return !ctx.exclude!.test(url)
+    })
   }
-  if (ctx.limit && urls.length > ctx.limit) {
-    urls = urls.slice(0, ctx.limit)
-    logs.push(`--limit 適用後: ${urls.length} 件のURL`)
+  if (ctx.limit !== null) filtered = filtered.slice(0, ctx.limit)
+  return filtered
+}
+
+async function refreshIndex(outDir: string, logs: string[]): Promise<{ index: ArchiveIndex | null; error: string | null }> {
+  try {
+    return { index: await buildArchiveIndex(outDir), error: null }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    logs.push(`[index] ${message}`)
+    return { index: null, error: message }
   }
+}
+
+async function cmdCapture(ctx: CliContext): Promise<CommandResult> {
+  const source = parseCaptureSource(ctx.args, ctx.sitemap, ctx.input)
+  const logs: string[] = []
+  const fetchHeaders = authFetchHeaders(ctx.captureOptions, {})
+  const urls = applyFilters(ctx, await loadCaptureUrls(source, {
+    allowPrivate: ctx.captureOptions.allowPrivate,
+    headers: Object.keys(fetchHeaders).length ? fetchHeaders : undefined,
+    lookup: ctx.captureOptions.lookup,
+  }))
   if (urls.length === 0) {
-    const result = out(ctx, { urls: 0 }, () => "URLが見つかりませんでした。")
-    return { ...result, stderr: logs.join("\n") }
+    throw new SiteSnapError("INVALID_URL", "収集対象URLがありません", "入力内容、--exclude、--limit、sitemapを確認してください。")
   }
-  const { domain, siteDir, results } = await captureUrls(urls, {
-    ...ctx.captureOptions,
-    rateLimiter: ctx.rateLimiter,
-  })
-  const runDir = await writeRunArtifacts({
-    domain,
-    siteDir: siteDir!,
-    source: sitemapUrl,
-    command: `sitesnap site ${sitemapUrl}`,
-    results,
-    options: artifactOptions(ctx),
-  })
-  const meta = await buildSiteMeta({
-    domain,
-    siteDir: siteDir!,
-    urls,
-    source: sitemapUrl,
-    results,
-    mobileProfile: ctx.captureOptions.mobileProfile,
-    fetchHeaders,
-  })
-  await buildIndex(ctx.outDir)
-  const captured = meta.pages.filter((p) => p.desktop || p.mobile).length
-  const errors = results
-    .filter((r) => r.error)
-    .map((r) => ({ url: r.url, mode: r.mode, error: r.error! }))
-  const result = out(
-    ctx,
-    {
+  const authOrigin = originForAuthentication(urls, ctx.captureOptions, source)
+  const archives: ArchiveRunResult[] = []
+  for (const [domain, hostUrls] of groupUrlsByHost(urls)) {
+    archives.push(await collectHost({
+      ctx,
       domain,
-      source: sitemapUrl,
-      pages: meta.pages.length,
-      captured_pages: captured,
-      errors,
+      tasks: buildCaptureTasks(hostUrls),
+      runSource: source,
+      manifestSource: source,
+      authOrigin,
+      logs,
+    }))
+  }
+  const indexResult = await refreshIndex(ctx.outDir, logs)
+  const indexError = indexResult.error
+  const status = combineStatuses([...archives.map((archive) => archive.status), ...(indexError ? ["failed" as const] : [])])
+  const requested = archives.reduce((sum, archive) => sum + archive.requested, 0)
+  const failed = archives.reduce((sum, archive) => sum + archive.failed, 0)
+  return json({
+    success: status === "complete",
+    schema_version: SCHEMA_VERSION,
+    command: "capture",
+    status,
+    source,
+    summary: { urls: urls.length, captures_requested: requested, captures_succeeded: requested - failed, captures_failed: failed },
+    archives,
+    out_dir: ctx.outDir,
+    index_status: indexResult.index?.status ?? "failed",
+    index_errors: indexResult.index?.errors ?? [],
+    ...(indexError ? { index_error: indexError } : {}),
+  }, status === "complete" ? 0 : 1, logs.join("\n"))
+}
+
+async function cmdRetry(ctx: CliContext): Promise<CommandResult> {
+  const domain = ctx.args[0] ?? missingArg("retry <domain>")
+  const siteDir = archiveSiteDir(ctx.outDir, domain)
+  const existing = await readArchiveManifest(siteDir)
+  if (!existing) {
+    throw new SiteSnapError("MANIFEST_NOT_FOUND", `manifestが見つかりません: ${domain}`, "sitesnap listでarchiveを確認してください。", { domain })
+  }
+  if (existing.domain !== domain) {
+    throw new SiteSnapError("MANIFEST_INVALID", `manifestのdomainがarchiveと一致しません: ${existing.domain}`, "archiveのmanifestを修復してください。", { domain })
+  }
+  const tasks: CaptureTask[] = existing.pages.flatMap((page) =>
+    buildCaptureTasks([page.url]).filter((task) => {
+      const capture = page.captures[task.mode]
+      if (capture?.device) task.device = capture.device
+      return !capture || capture.status === "failed"
+    })
+  )
+  if (tasks.length === 0) {
+    return json({
+      success: true,
+      schema_version: SCHEMA_VERSION,
+      command: "retry",
+      status: existing.status,
+      summary: { captures_requested: 0, captures_succeeded: 0, captures_failed: 0 },
+      archives: [{ domain, status: existing.status, archive_status: existing.status, run_status: "complete", requested: 0, succeeded: 0, failed: 0, manifest: path.join(siteDir, "manifest.json"), run_artifact: null }],
       out_dir: ctx.outDir,
-      run_dir: runDir,
-    },
-    (r) => {
-      const errCount = (r.errors as unknown[]).length
-      return `\n完了: ${r.captured_pages}/${r.pages} ページ → ${path.relative(process.cwd(), siteDir!)}/meta.json${errCount ? ` (${errCount} 件のエラー)` : ""}`
-    }
-  )
-  return withExitCode({ ...result, stderr: logs.join("\n") }, ctx.strict && errors.length > 0 ? 1 : 0)
+    })
+  }
+  const authOrigin = originForAuthentication(tasks.map((task) => task.url), ctx.captureOptions)
+  const logs: string[] = []
+  const archive = await collectHost({ ctx, domain, tasks, runSource: { kind: "retry", value: domain }, authOrigin, logs })
+  const indexResult = await refreshIndex(ctx.outDir, logs)
+  const indexError = indexResult.error
+  const status = combineStatuses([archive.status, ...(indexError ? ["failed" as const] : [])])
+  return json({
+    success: status === "complete",
+    schema_version: SCHEMA_VERSION,
+    command: "retry",
+    status,
+    summary: { captures_requested: archive.requested, captures_succeeded: archive.succeeded, captures_failed: archive.failed },
+    archives: [archive],
+    out_dir: ctx.outDir,
+    index_status: indexResult.index?.status ?? "failed",
+    index_errors: indexResult.index?.errors ?? [],
+    ...(indexError ? { index_error: indexError } : {}),
+  }, status === "complete" ? 0 : 1, logs.join("\n"))
 }
 
-async function cmdPage(ctx: CliContext): Promise<CommandResult> {
-  const url = ctx.args[0]
-  if (!url) {
-    throw missingArg("page <url>")
-  }
-  const { domain, siteDir, results } = await captureUrls([url], {
-    ...ctx.captureOptions,
-  })
-  const runDir = await writeRunArtifacts({
-    domain,
-    siteDir: siteDir!,
-    source: null,
-    command: `sitesnap page ${url}`,
-    results,
-    options: artifactOptions(ctx),
-  })
-  const existing = (await readMeta(ctx, domain))?.pages.map((p) => p.url) || []
-  const allUrls = [...new Set([...existing, url])]
-  const meta = await buildSiteMeta({
-    domain,
-    siteDir: siteDir!,
-    urls: allUrls,
-    source: null,
-    results,
-    mobileProfile: ctx.captureOptions.mobileProfile,
-    fetchHeaders: authFetchHeaders(ctx.captureOptions, {}),
-  })
-  await buildIndex(ctx.outDir)
-  const page = meta.pages.find((p) => p.url === url)
-  const failed = results.filter((r) => r.error)
-  const result = out(
-    ctx,
-    {
-      domain,
-      url,
-      desktop: !!page?.desktop,
-      mobile: !!page?.mobile,
-      desktop_path: page?.desktop ? path.join(siteDir!, page.desktop) : null,
-      mobile_path: page?.mobile ? path.join(siteDir!, page.mobile) : null,
-      errors: failed.map((r) => r.error),
-      out_dir: ctx.outDir,
-      run_dir: runDir,
-    },
-    (r) => {
-      const desktop = r.desktop as boolean
-      const mobile = r.mobile as boolean
-      return `\n完了: ${r.url} → ${path.relative(process.cwd(), siteDir!)}/${desktop && mobile ? "(デスクトップ+モバイル)" : desktop ? "(デスクトップのみ)" : mobile ? "(モバイルのみ)" : "(失敗)"}`
-    }
-  )
-  return withExitCode(result, ctx.strict && failed.length > 0 ? 1 : 0)
-}
-
-async function cmdShot(ctx: CliContext): Promise<CommandResult> {
-  const url = ctx.args[0]
-  if (!url) {
-    throw missingArg("shot <url>")
-  }
-  const shot = await captureShot(url, {
-    ...ctx.shotOptions,
-    // shotDir は cli-args で解決済み (--out 明示なら outDir、未指定なら OS キャッシュ)。
-    // list --shots / clean も同じ shotDir を見るので撮影・列挙・掃除が一致する。
-    outDir: ctx.shotDir,
-    outFile: ctx.outFile,
-    allowPrivate: ctx.captureOptions.allowPrivate,
-    allowFile: ctx.captureOptions.allowFile,
-    forceVisible: ctx.captureOptions.forceVisible,
-    storageState: ctx.captureOptions.storageState,
-    headers: ctx.captureOptions.headers,
-    httpCredentials: ctx.captureOptions.httpCredentials,
-  })
-  return out(
-    ctx,
-    { ...shot },
-    (r) => `撮影完了: ${r.file} (${(r.viewport as { width: number }).width}x${(r.viewport as { height: number }).height}${r.full ? ", full" : ""}${r.selector ? `, selector: ${r.selector}` : ""})`
-  )
-}
-
-async function cmdInspect(ctx: CliContext): Promise<CommandResult> {
-  const url = ctx.args[0]
-  if (!url) {
-    throw missingArg("inspect <url> --selector <css>")
-  }
-  const report = await inspectUrl(url, {
-    vp: ctx.shotOptions.vp,
-    device: ctx.shotOptions.device,
-    settleMs: ctx.shotOptions.settleMs,
-    selector: ctx.shotOptions.selector,
-    props: ctx.shotOptions.props ?? undefined,
-    limit: ctx.limit,
-    allowPrivate: ctx.captureOptions.allowPrivate,
-    storageState: ctx.captureOptions.storageState,
-    headers: ctx.captureOptions.headers,
-    httpCredentials: ctx.captureOptions.httpCredentials,
-  })
-  return out(
-    ctx,
-    { ...report },
-    (r) => {
-      const count = r.count as number
-      if (count === 0) return `一致する要素はありません: ${r.selector}`
-      const lines = [`${count} 件マッチ: ${r.selector}`]
-      for (const el of (r.elements as { box: { x: number; y: number; width: number; height: number } }[])) {
-        lines.push(`  ${el.box.width}x${el.box.height} @ (${el.box.x}, ${el.box.y})`)
-      }
-      return lines.join("\n")
-    }
-  )
-}
-
-async function cmdCheck(ctx: CliContext): Promise<CommandResult> {
-  const url = ctx.args[0]
-  if (!url) {
-    throw missingArg("check <url>")
-  }
-  const report = await checkUrl(url, {
-    vp: ctx.shotOptions.vp,
-    device: ctx.shotOptions.device,
-    settleMs: ctx.shotOptions.settleMs,
-    allowPrivate: ctx.captureOptions.allowPrivate,
-    storageState: ctx.captureOptions.storageState,
-    headers: ctx.captureOptions.headers,
-    httpCredentials: ctx.captureOptions.httpCredentials,
-  })
-  const result = out(
-    ctx,
-    { ...report },
-    (r) => {
-      const checks = r.checks as typeof report.checks
-      const mark = (pass: boolean) => (pass ? "ok " : "NG ")
-      const lines = [
-        `${report.pass ? "PASS" : "FAIL"}: ${r.url}`,
-        `  ${mark(checks.overflow.pass)}横はみ出し${checks.overflow.pass ? "" : ` (${checks.overflow.amount}px, ${checks.overflow.offenders.length} 要素)`}`,
-        `  ${mark(checks.console_errors.pass)}consoleエラー${checks.console_errors.pass ? "" : ` (${checks.console_errors.messages.length} 件)`}`,
-        `  ${mark(checks.failed_requests.pass)}失敗リクエスト${checks.failed_requests.pass ? "" : ` (${checks.failed_requests.requests.length} 件)`}`,
-        `  ${mark(checks.a11y.pass)}アクセシビリティ${checks.a11y.pass ? "" : ` (${checks.a11y.violations.length} violations)`}`,
-      ]
-      return lines.join("\n")
-    }
-  )
-  return withExitCode(result, ctx.strict && !report.pass ? 1 : 0)
+async function cmdList(ctx: CliContext): Promise<CommandResult> {
+  const index = await buildArchiveIndex(ctx.outDir)
+  return json({ success: index.status === "complete", command: "list", ...index, out_dir: ctx.outDir }, index.status === "complete" ? 0 : 1)
 }
 
 async function cmdLogin(ctx: CliContext): Promise<CommandResult> {
-  const url = ctx.args[0]
-  if (!url) {
-    throw missingArg("login <url>")
-  }
+  const url = ctx.args[0] ?? missingArg("login <url>")
   const result = await runLogin(url, {
     outFile: ctx.outFile,
     allowPrivate: ctx.captureOptions.allowPrivate,
   })
-  return out(
-    ctx,
-    { ...result, hint: `--storage-state ${result.file} を付けると、この状態で撮影できます。ファイルはシークレットなので .gitignore に追加してください。` },
-    (r) =>
-      [
-        `ログイン状態を保存しました: ${r.file} (cookies: ${r.cookies}, origins: ${r.origins})`,
-        "",
-        "この状態で撮影するには:",
-        `  sitesnap shot <url> --storage-state ${r.file} --json`,
-        "",
-        "注意: このファイルはログインセッションそのものです。.gitignore に追加し、共有しないでください。",
-      ].join("\n")
-  )
-}
-
-async function cmdList(ctx: CliContext): Promise<CommandResult> {
-  if (ctx.shots) {
-    const shots = await listShots(ctx.shotDir)
-    return out(ctx, { shots }, () => {
-      if (shots.length === 0) return `shot はまだありません (確認先: ${ctx.shotDir})。`
-      const lines = [`shot 一覧 (${ctx.shotDir}):`, ""]
-      for (const s of shots) {
-        const date = s.latest_mtime?.slice(0, 10) || "?"
-        lines.push(`  ${s.host.padEnd(30)} ${String(s.files).padStart(4)} 枚   ${formatBytes(s.bytes).padStart(9)}   ${date}`)
-      }
-      lines.push("", "古い shot は sitesnap clean で削除できます (まず --dry-run)。")
-      return lines.join("\n")
-    })
-  }
-  const sites = await buildIndex(ctx.outDir)
-  return out(ctx, { sites }, () => {
-    if (sites.length === 0) return `まだキャプチャ済みサイトはありません (確認先: ${ctx.outDir})。`
-    const lines = [`キャプチャ済みサイト一覧 (${ctx.outDir}):`, ""]
-    for (const s of sites) {
-      const date = s.captured_at?.slice(0, 10) || "?"
-      lines.push(`  ${s.domain.padEnd(30)} ${s.captured_pages}/${s.pages} ページ   ${date}`)
-    }
-    return lines.join("\n")
+  return json({
+    success: true,
+    schema_version: SCHEMA_VERSION,
+    command: "login",
+    ...result,
+    hint: `--storage-state ${result.file} をcapture/retryへ渡してください。このファイルはsecretとして扱ってください。`,
   })
-}
-
-async function cmdOpen(ctx: CliContext): Promise<CommandResult> {
-  const domain = ctx.args[0]
-  if (!domain) {
-    throw missingArg("open <domain>")
-  }
-  const dir = path.resolve(ctx.outDir, domain)
-  if (!existsSync(dir)) {
-    throw new SiteSnapError(
-      "DOMAIN_NOT_FOUND",
-      `${domain} のキャプチャがありません: ${dir}`,
-      "sitesnap list でキャプチャ済み domain を確認するか、先に site / page でキャプチャしてください。",
-      { domain, output: dir }
-    )
-  }
-  const opener =
-    process.platform === "darwin"
-      ? { cmd: "open", args: [dir] }
-      : process.platform === "win32"
-        ? { cmd: "explorer", args: [dir] }
-        : { cmd: "xdg-open", args: [dir] }
-  spawn(opener.cmd, opener.args, { stdio: "ignore", detached: true }).unref()
-  return out(ctx, { domain, opened: dir }, (r) => `開きました: ${r.opened}`)
-}
-
-async function cmdRetry(ctx: CliContext): Promise<CommandResult> {
-  const domain = ctx.args[0]
-  if (!domain) {
-    throw missingArg("retry <domain>")
-  }
-  const meta = await readMeta(ctx, domain)
-  if (!meta) {
-    throw new SiteSnapError(
-      "META_NOT_FOUND",
-      `meta.json が見つかりません: ${path.join(ctx.outDir, domain)}`,
-      "先に sitesnap site または page でキャプチャしてください。",
-      { domain }
-    )
-  }
-  const failedUrls = meta.pages
-    .filter((p) => !p.desktop || !p.mobile || p.desktop_error || p.mobile_error)
-    .map((p) => p.url)
-  if (failedUrls.length === 0) {
-    return out(ctx, { domain, retried: 0 }, () => "再取得対象のページはありません。")
-  }
-  const logs = [`${failedUrls.length} 件のページを再取得中...`]
-  const { siteDir, results } = await captureUrls(failedUrls, {
-    force: true,
-    ...ctx.captureOptions,
-    rateLimiter: ctx.rateLimiter,
-  })
-  const runDir = await writeRunArtifacts({
-    domain,
-    siteDir: siteDir!,
-    source: meta.source,
-    command: `sitesnap retry ${domain}`,
-    results,
-    options: { ...artifactOptions(ctx), force: true },
-  })
-  const allUrls = meta.pages.map((p) => p.url)
-  const newMeta = await buildSiteMeta({
-    domain,
-    siteDir: siteDir!,
-    urls: allUrls,
-    source: meta.source,
-    results,
-    mobileProfile: ctx.captureOptions.mobileProfile,
-    fetchHeaders: authFetchHeaders(ctx.captureOptions, {}),
-  })
-  await buildIndex(ctx.outDir)
-  const stillFailing = newMeta.pages.filter(
-    (p) => failedUrls.includes(p.url) && (!p.desktop || !p.mobile)
-  ).length
-  const result = out(
-    ctx,
-    { domain, retried: failedUrls.length, still_failing: stillFailing, run_dir: runDir },
-    (r) =>
-      `再取得完了: ${(r.retried as number) - (r.still_failing as number)}/${r.retried} 件が新たにキャプチャされました。`
-  )
-  return withExitCode({ ...result, stderr: logs.join("\n") }, ctx.strict && stillFailing > 0 ? 1 : 0)
-}
-
-async function cmdDoctor(ctx: CliContext): Promise<CommandResult> {
-  const runDir = ctx.args[0]
-  if (!runDir) {
-    throw missingArg("doctor <run-dir>")
-  }
-  const resolvedRunDir = path.resolve(runDir)
-  if (!existsSync(resolvedRunDir)) {
-    throw new SiteSnapError(
-      "RUN_DIR_NOT_FOUND",
-      `run-dir が見つかりません: ${resolvedRunDir}`,
-      "site / page / retry 実行後に出力される runs/latest を指定してください。",
-      { output: resolvedRunDir }
-    )
-  }
-
-  const report = await analyzeRunDirectory(resolvedRunDir)
-  const written = ctx.agentTask ? await writeDoctorFiles(resolvedRunDir, report) : []
-  return out(
-    ctx,
-    {
-      domain: report.domain,
-      total_captures: report.totalCaptures,
-      failed_captures: report.failedCaptures,
-      blank_captures: report.blankCaptures,
-      timeout_captures: report.timeoutCaptures,
-      http_error_captures: report.httpErrorCaptures,
-      suggested_retry: report.suggestedRetry,
-      generated_files: written,
-    },
-    () => {
-      const lines = [`${report.failedCaptures}件の失敗キャプチャを検出しました。`]
-      if (report.blankCaptures > 0) lines.push(`${report.blankCaptures}件のスクリーンショットが白紙っぽいです。`)
-      if (report.timeoutCaptures > 0) lines.push(`${report.timeoutCaptures}件がtimeoutしています。`)
-      if (report.httpErrorCaptures > 0) lines.push(`${report.httpErrorCaptures}件がHTTPエラーです。`)
-      if (report.suggestedRetry) {
-        lines.push("", "推奨リトライ:", report.suggestedRetry)
-      }
-      if (written.length > 0) {
-        lines.push("", "生成ファイル:")
-        for (const file of written) lines.push(`- ${path.relative(process.cwd(), file)}`)
-      }
-      return lines.join("\n")
-    }
-  )
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-async function cmdClean(ctx: CliContext): Promise<CommandResult> {
-  const host = ctx.args[0] ?? null
-  const result = await pruneShots(ctx.shotDir, {
-    host,
-    olderThanDays: ctx.olderThan,
-    dryRun: ctx.dryRun,
-  })
-  return out(
-    ctx,
-    {
-      out_dir: ctx.shotDir,
-      host: host ?? null,
-      older_than_days: ctx.olderThan ?? null,
-      dry_run: result.dry_run,
-      removed_files: result.removed.length,
-      removed_bytes: result.bytes,
-      removed: result.removed.map((f) => f.file),
-    },
-    (r) => {
-      const n = r.removed_files as number
-      const size = formatBytes(r.removed_bytes as number)
-      if (n === 0) return "削除対象の shot はありません。"
-      const verb = r.dry_run ? "削除対象 (--dry-run)" : "削除しました"
-      return `${verb}: ${n} ファイル (${size})${r.dry_run ? "\n実行するには --dry-run を外してください。" : ""}`
-    }
-  )
 }
 
 export function buildCommands(): Record<string, CommandHandler> {
-  return {
-    site: cmdSite,
-    page: cmdPage,
-    shot: cmdShot,
-    inspect: cmdInspect,
-    check: cmdCheck,
-    login: cmdLogin,
-    list: cmdList,
-    open: cmdOpen,
-    retry: cmdRetry,
-    doctor: cmdDoctor,
-    clean: cmdClean,
-  }
+  return { capture: cmdCapture, retry: cmdRetry, list: cmdList, login: cmdLogin }
 }

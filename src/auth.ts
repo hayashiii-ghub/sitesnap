@@ -1,11 +1,12 @@
 import { readFileSync } from "node:fs"
+import { validateHeaderName, validateHeaderValue } from "node:http"
 import path from "node:path"
 import { SiteSnapError } from "./errors.ts"
 
-// 認証まわりのオプション。shot / inspect / check / site / page / retry で共通。
+// capture / retry で共通の認証オプション。
 // - storageState: Playwright storage state JSON (cookies + localStorage) のパス。
 //   `sitesnap login` か `playwright codegen --save-storage` で作る
-// - headers: 全リクエストに付与する追加ヘッダ (Bearer トークンや固定 Cookie 向け)
+// - headers: capture対象originにだけ付与する追加ヘッダ (Bearer トークン等)
 // - httpCredentials: HTTP Basic 認証 (ステージング環境向け)
 export interface AuthOptions {
   storageState?: string
@@ -21,8 +22,19 @@ export function parseHeaderFlag(value: string): [string, string] {
   if (!name || !headerValue) {
     throw new SiteSnapError(
       "INVALID_OPTION",
-      `--header の形式が不正です: ${value}`,
+      "--header の形式が不正です",
       '--header "Name: value" の形式で指定してください (例: --header "Authorization: Bearer TOKEN")。',
+      {}
+    )
+  }
+  try {
+    validateHeaderName(name)
+    validateHeaderValue(name, headerValue)
+  } catch {
+    throw new SiteSnapError(
+      "INVALID_OPTION",
+      "--header の形式が不正です",
+      '--header "Name: value" の形式で、有効なHTTPヘッダ名と値を指定してください。',
       {}
     )
   }
@@ -84,15 +96,17 @@ export function resolveStorageStatePath(file: string): string {
 }
 
 // browser.newContext に spread する認証系オプション
-export function authContextOptions(opts: AuthOptions): {
+export function authContextOptions(opts: AuthOptions, credentialsOrigin?: string): {
   storageState?: string
   extraHTTPHeaders?: Record<string, string>
-  httpCredentials?: { username: string; password: string }
+  httpCredentials?: { username: string; password: string; origin?: string }
 } {
   return {
     ...(opts.storageState ? { storageState: opts.storageState } : {}),
     ...(opts.headers && Object.keys(opts.headers).length > 0 ? { extraHTTPHeaders: opts.headers } : {}),
-    ...(opts.httpCredentials ? { httpCredentials: opts.httpCredentials } : {}),
+    ...(opts.httpCredentials
+      ? { httpCredentials: { ...opts.httpCredentials, ...(credentialsOrigin ? { origin: credentialsOrigin } : {}) } }
+      : {}),
   }
 }
 

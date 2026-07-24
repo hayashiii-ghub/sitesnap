@@ -15,7 +15,7 @@ function pngWidth(buf: Buffer): number {
 }
 
 test(
-  "captureUrls: 撮影PNGの実寸が設定ビューポートと一致する (desktop 1440 / mobile iPhone 17)",
+  "captureUrls: 撮影PNGの実寸が設定ビューポートと一致する (desktop 1440 / mobile iPhone 15)",
   async () => {
     const server = Bun.serve({
       port: 0,
@@ -42,10 +42,10 @@ test(
       const mobile = results.find((r) => r.mode === "mobile");
       expect(mobile?.error).toBeUndefined();
       expect(mobile?.file).toBeTruthy();
-      expect(mobile?.device).toBe("iPhone 17");
-      const iphone17 = devices["iPhone 17"]!;
+      expect(mobile?.device).toBe("iPhone 15");
+      const iphone15 = devices["iPhone 15"]!;
       expect(pngWidth(await readFile(mobile!.file!))).toBe(
-        iphone17.viewport.width * iphone17.deviceScaleFactor!
+        iphone15.viewport.width * iphone15.deviceScaleFactor!
       );
     } finally {
       server.stop();

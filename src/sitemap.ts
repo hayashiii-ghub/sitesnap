@@ -1,48 +1,52 @@
 import { XMLParser } from "fast-xml-parser"
-import { assertPublicUrl } from "./url-guard.ts"
-import { USER_AGENT, DEFAULTS } from "./config.ts"
+import { DEFAULTS, USER_AGENT } from "./config.ts"
 import { SiteSnapError } from "./errors.ts"
+import { assertPublicUrl, assertPublicUrlResolved, type HostLookup } from "./url-guard.ts"
 
 const parser = new XMLParser()
 
-async function fetchXml(url: string, headers?: Record<string, string>): Promise<unknown> {
-  let res: Response
+interface FetchXmlOptions {
+  allowPrivate?: boolean
+  headers?: Record<string, string>
+  authOrigin?: string
+  lookup?: HostLookup
+  fetchTimeoutMs?: number
+}
+
+async function fetchXml(url: string, opts: FetchXmlOptions): Promise<unknown> {
+  let current = url
+  let response: Response | undefined
+  for (let redirects = 0; redirects <= 10; redirects += 1) {
+    await assertPublicUrlResolved(current, opts)
+    const scopedHeaders = !opts.authOrigin || new URL(current).origin === opts.authOrigin ? opts.headers : undefined
+    try {
+      response = await fetch(current, {
+        redirect: "manual",
+        headers: { "user-agent": USER_AGENT, ...(scopedHeaders ?? {}) },
+        signal: AbortSignal.timeout(opts.fetchTimeoutMs ?? DEFAULTS.navigationTimeout),
+      })
+    } catch (error) {
+      throw new SiteSnapError("SITEMAP_FETCH_FAILED", `sitemapの取得に失敗しました: ${(error as Error).message}`, "URLとネットワーク接続を確認してください。", { url: current })
+    }
+    if (response.status < 300 || response.status >= 400) break
+    const location = response.headers.get("location")
+    if (!location) break
+    current = new URL(location, current).href
+  }
+
+  if (!response || (response.status >= 300 && response.status < 400)) {
+    throw new SiteSnapError("SITEMAP_FETCH_FAILED", `sitemapのredirectが多すぎます: ${url}`, "redirect設定を確認してください。", { url })
+  }
+  if (!response.ok) {
+    throw new SiteSnapError("SITEMAP_FETCH_FAILED", `sitemapの取得に失敗しました: ${response.status} ${current}`, "URLとネットワーク接続を確認してください。", { url: current, status: response.status })
+  }
+  if (/text\/html/i.test(response.headers.get("content-type") ?? "")) {
+    throw new SiteSnapError("SITEMAP_NOT_XML", `URLがHTMLを返しました: ${current}`, "単一ページはsitesnap capture <url>を使用してください。", { url: current })
+  }
   try {
-    res = await fetch(url, { headers: { "user-agent": USER_AGENT, ...(headers || {}) } })
-  } catch (err) {
-    throw new SiteSnapError(
-      "SITEMAP_FETCH_FAILED",
-      `sitemap の取得に失敗しました: ${(err as Error).message}`,
-      "URL を確認、またはネットワーク接続を確認してください。",
-      { url }
-    )
-  }
-  if (!res.ok) {
-    throw new SiteSnapError(
-      "SITEMAP_FETCH_FAILED",
-      `sitemap の取得に失敗しました: ${res.status} ${url}`,
-      "URL を確認、またはネットワーク接続を確認してください。",
-      { url, status: res.status }
-    )
-  }
-  const ct = res.headers.get("content-type") || ""
-  if (/text\/html/i.test(ct)) {
-    throw new SiteSnapError(
-      "SITEMAP_NOT_XML",
-      `URLがHTMLを返しました（sitemapではありません）: ${url}`,
-      "単一ページなら 'sitesnap page <url>' を使うか、実際の sitemap 位置を確認してください（/sitemap.xml や /robots.txt 内）。",
-      { url }
-    )
-  }
-  try {
-    return parser.parse(await res.text())
-  } catch (err) {
-    throw new SiteSnapError(
-      "SITEMAP_PARSE_FAILED",
-      `sitemap XML の解析に失敗しました: ${(err as Error).message}`,
-      "sitemap XML の構文を確認してください。",
-      { url }
-    )
+    return parser.parse(await response.text())
+  } catch (error) {
+    throw new SiteSnapError("SITEMAP_PARSE_FAILED", `sitemap XMLの解析に失敗しました: ${(error as Error).message}`, "XML構文を確認してください。", { url: current })
   }
 }
 
@@ -51,72 +55,41 @@ export interface ExpandSitemapOptions {
   depth?: number
   maxDepth?: number
   allowPrivate?: boolean
-  // 認証下の sitemap.xml 向け追加ヘッダ (--header / --http-credentials 由来)
   headers?: Record<string, string>
+  authOrigin?: string
+  lookup?: HostLookup
+  fetchTimeoutMs?: number
 }
 
-interface SitemapIndexEntry {
-  loc?: string
-}
-interface UrlsetEntry {
-  loc?: string
-}
+interface SitemapIndexEntry { loc?: string }
+interface UrlsetEntry { loc?: string }
 interface ParsedSitemap {
   sitemapindex?: { sitemap: SitemapIndexEntry | SitemapIndexEntry[] }
   urlset?: { url: UrlsetEntry | UrlsetEntry[] }
 }
 
-export async function expandSitemap(
-  sitemapUrl: string,
-  opts: ExpandSitemapOptions = {}
-): Promise<string[]> {
-  const visited = opts.visited || new Set<string>()
-  const depth = opts.depth || 0
+export async function expandSitemap(sitemapUrl: string, opts: ExpandSitemapOptions = {}): Promise<string[]> {
+  assertPublicUrl(sitemapUrl, opts)
+  const visited = opts.visited ?? new Set<string>()
+  const depth = opts.depth ?? 0
   const maxDepth = opts.maxDepth ?? DEFAULTS.maxSitemapDepth
-  const allowPrivate = opts.allowPrivate || false
-
   if (depth > maxDepth) {
-    throw new SiteSnapError(
-      "SITEMAP_TOO_DEEP",
-      `サイトマップのネストが深すぎます (maxDepth=${maxDepth}): ${sitemapUrl}`,
-      "maxDepth オプションで上限を引き上げるか、再帰的な sitemap を確認してください。",
-      { url: sitemapUrl, depth: maxDepth }
-    )
+    throw new SiteSnapError("SITEMAP_TOO_DEEP", `sitemapのネストが深すぎます: ${sitemapUrl}`, "maxDepthを確認してください。", { url: sitemapUrl, depth })
   }
   if (visited.has(sitemapUrl)) return []
   visited.add(sitemapUrl)
 
-  assertPublicUrl(sitemapUrl, { allowPrivate })
-
-  const data = (await fetchXml(sitemapUrl, opts.headers)) as ParsedSitemap
-
+  const authOrigin = opts.authOrigin ?? new URL(sitemapUrl).origin
+  const data = (await fetchXml(sitemapUrl, { ...opts, authOrigin })) as ParsedSitemap
   if (data.sitemapindex) {
-    const entries = data.sitemapindex.sitemap
-    const subs = (Array.isArray(entries) ? entries : [entries])
-      .map((s) => s.loc)
-      .filter((loc): loc is string => Boolean(loc))
-    const all = new Set<string>()
-    for (const sub of subs) {
-      const childOpts: ExpandSitemapOptions = {
-        visited,
-        depth: depth + 1,
-        maxDepth,
-        allowPrivate,
-        headers: opts.headers,
-      }
-      for (const u of await expandSitemap(sub, childOpts)) all.add(u)
+    const entries = Array.isArray(data.sitemapindex.sitemap) ? data.sitemapindex.sitemap : [data.sitemapindex.sitemap]
+    const urls = new Set<string>()
+    for (const child of entries.map((entry) => entry.loc).filter((value): value is string => Boolean(value))) {
+      for (const url of await expandSitemap(child, { ...opts, visited, depth: depth + 1, maxDepth, authOrigin })) urls.add(url)
     }
-    return [...all].sort()
+    return [...urls].sort()
   }
-
-  if (data.urlset) {
-    const entries = data.urlset.url
-    if (!entries) return []
-    return (Array.isArray(entries) ? entries : [entries])
-      .map((e) => e.loc)
-      .filter((loc): loc is string => Boolean(loc))
-      .sort()
-  }
-
-  return []
+  if (!data.urlset?.url) return []
+  const entries = Array.isArray(data.urlset.url) ? data.urlset.url : [data.urlset.url]
+  return entries.map((entry) => entry.loc).filter((value): value is string => Boolean(value)).sort()
 }

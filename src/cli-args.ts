@@ -1,402 +1,223 @@
 import path from "node:path"
 import { parseHeaderFlag, parseHttpCredentials, resolveStorageStatePath } from "./auth.ts"
 import type { CaptureOptions } from "./capture.ts"
-import { DEFAULTS, shotCacheDir, type MobileProfile } from "./config.ts"
+import { DEFAULTS } from "./config.ts"
 import { SiteSnapError } from "./errors.ts"
 import { createHostRateLimiter, type HostRateLimiter } from "./rate-limit.ts"
-import { parseViewport, type Viewport } from "./shot.ts"
 
 export const HELP = `
-sitesnap — ウェブサイトのスクリーンショットを一括キャプチャするCLI
+sitesnap — AIエージェント向けのサイト収集・スクリーンショットarchive CLI
 
 使い方:
-  sitesnap site <sitemap-url>     sitemapから全ページをキャプチャ
-  sitesnap page <url>              1ページだけキャプチャ
-  sitesnap shot <url>              開発検証用の単発スクリーンショット
-  sitesnap inspect <url>           要素の computed style / 寸法 / overflow を JSON で取得
-  sitesnap check <url>             横はみ出し/consoleエラー/失敗リクエスト/a11y の合否レポート
-  sitesnap login <url>             ブラウザでログインして状態を保存 (--storage-state で再利用)
-  sitesnap list                    キャプチャ済みサイト一覧 (--shots で shot を列挙)
-  sitesnap clean [host]            溜まった shot を削除 (アーカイブには触れない)
-  sitesnap open <domain>           Finderでサイトのフォルダを開く
-  sitesnap retry <domain>          失敗したページのみ再取得
-  sitesnap doctor <run-dir>        キャプチャ結果を診断し、再取得案を表示
-  sitesnap help                    このヘルプを表示
-  sitesnap --version               バージョン番号を表示
+  sitesnap capture <url>             1ページをdesktop/mobileで収集
+  sitesnap capture --sitemap <url>  sitemap内のページを収集
+  sitesnap capture --input <file|-> 改行区切りURLを収集（- はstdin）
+  sitesnap retry <domain>            manifest内の失敗captureだけ再実行
+  sitesnap list                      archive一覧をJSONで取得
+  sitesnap login <url>               ログイン状態をstorage stateへ保存
+  sitesnap help                      このヘルプを表示
+  sitesnap --version                 バージョン番号を表示
 
-グローバルフラグ:
-  -h, --help                            ヘルプを表示（サブコマンドの後ろでも可）
-  --json                                JSON形式でstdout出力（進捗はstderr）
-  --force-visible                       スクロール連動アニメで隠れた要素を強制表示
-                                        (AOS / wow.js / Framer Motion(motion/react) の
-                                         whileInView 等対策。スクショが真っ白な時に使用)
-  --out <dir>                           出力先ディレクトリ（site/page のデフォルト: ./sites/）
-                                        shot は未指定なら OS キャッシュに出す（cwd を汚さない）
-                                        SITESNAP_OUT 環境変数でも指定可
-  --limit <N>                           site: 最初の N 件のURLのみキャプチャ（--exclude適用後）
-                                        inspect: 一致要素を N 件まで取得（デフォルト 10）
-  --exclude <regex>                     この正規表現にマッチするURLをスキップ
-  --concurrency <N>                     並列ワーカー数を上書き（デフォルト 3）
-                                        URL×端末の全キャプチャタスクを同時実行数で制限
-  --mobile-profile <broad>              複数モバイル端末で撮影 (broad: iPhone 17 / iPhone SE (3rd gen) / Pixel 10)
-  --wait-ms <ms>                        スクリーンショット前に追加で待機
-  --pre-scroll <full-page|none>         スクリーンショット前の自動スクロール設定
-  --agent-task                          doctor実行時にagent向け調査ファイルを生成
-  --min-interval <ms>                   同一ホストへの最小間隔(ms、デフォルト 0 で無効)
-  --strict                              1ページでも失敗したら非ゼロ終了（CI向け）
-  --allow-private                       localhost/プライベートIPへのアクセスを許可
+出力:
+  実行コマンドは常にJSONをstdoutへ出力します。進捗ログはstderrです。
+  --json は明示しても構いません（互換用のno-op）。
 
-認証フラグ (site / page / shot / inspect / check / retry):
-  --storage-state <file>                Playwright storage state JSON (cookies+localStorage)
-                                        を読み込んで撮影。sitesnap login <url> で作成できる
-  --header "Name: value"                全リクエストに追加ヘッダを付与（繰り返し可）
-                                        例: --header "Authorization: Bearer TOKEN"
-  --http-credentials <user:pass>        HTTP Basic認証（ステージング環境など）
-                                        SITESNAP_HTTP_CREDENTIALS 環境変数でも指定可
-                                        （シェル履歴に残さないなら環境変数を推奨）
+capture入力（いずれか1つ）:
+  <url>                              単一ページ
+  --sitemap <url>                    sitemap / sitemap index
+  --input <file|->                   改行区切りURL。空行と#コメントは無視
 
-shot / inspect / check 用フラグ:
-  --vp <WxH>                            ビューポートサイズ（デフォルト 1440x900）
-  --device <name>                       Playwrightデバイス名（例: "iPhone 17"）
-  --selector <css>                      対象要素のCSSセレクタ（inspectでは必須）
-  --settle <ms>                         アニメ凍結せず指定ms待ってから実行
-  --full                                フルページ撮影（shotのみ。デフォルトはビューポートのみ）
-  --props <p1,p2>                       inspectで追加取得するCSSプロパティ（カンマ区切り）
+収集オプション (capture / retry):
+  --out <dir>                        archive出力先（既定: ./sites）
+  --concurrency <N>                  同時capture数（既定: 3）
+  --min-interval <ms>                同一hostへの最小アクセス間隔
+  --wait-ms <ms>                     撮影前の追加待機
+  --pre-scroll <full-page|none>      lazy-load用の事前scroll（既定: full-page）
+  --force-visible                    scroll reveal要素を強制表示
+  --allow-private                    localhost/private networkを許可
+  --storage-state <file>             Playwright storage state
+  --header "Name: value"             対象originだけに追加headerを送る（反復可）
+  --http-credentials <user:pass>     対象originのHTTP Basic認証
 
-shot の撮影前インタラクション / 状態指定:
-  --click <css>                         撮影前にクリック（繰り返し可。CSSタブ切替/details展開など）
-  --eval <js>                           撮影前に任意JSを実行（clickで書けない状態の逃げ道）
-  --label <name>                        出力ファイル名に付ける状態ラベル（状態違いの撮り分け）
-  --allow-file                          file:// のローカルHTMLを直撮りする（shotのみ）
-  -o, --out-file <path>                 撮った1枚を指定パスへ直接書き出す（shotのみ）
-                                        親ディレクトリは自動作成。--json の file もこのパスを返す
-                                        （--out とは併用不可）
+capture限定:
+  --limit <N>                        filter後の先頭N URLだけ収集
+  --exclude <regex>                  一致するURLを除外
 
-login 用フラグ:
-  -o, --out-file <path>                 保存先の storage state ファイル
-                                        （デフォルト ./sitesnap-state.json。gitignore 推奨）
+login限定:
+  -o, --out-file <file>              保存先（既定: ./sitesnap-state.json）
 
-list / clean 用フラグ:
-  --shots                               list で shot をホスト別に列挙 (既定はキャッシュ領域。--out で project 配下に変更可)
-  --older-than <days>                   clean で指定日数より古い shot だけ削除
-  --dry-run                             clean で削除せず対象だけ表示
-
-使用例:
-  sitesnap shot http://localhost:3000/about --allow-private --json
-  sitesnap login https://app.example.com/login -o auth.json
-  sitesnap shot https://app.example.com/dashboard --storage-state auth.json --json
-  sitesnap shot https://api.example.com/ --header "Authorization: Bearer TOKEN" --json
-  sitesnap site https://staging.example.com/sitemap.xml --http-credentials user:pass --json
-  sitesnap shot https://example.com/ --selector "footer" --json
-  sitesnap shot https://example.com/ --device "iPhone 13" --settle 1500 --json
-  sitesnap shot http://localhost:3000/ --allow-private --click ".tab-user" --label user --json
-  sitesnap shot file:///tmp/mock.html --allow-file --click "summary" --label open --json
-  sitesnap shot file:///tmp/mock.html --allow-file --full -o ./public/og.png --json
-  sitesnap shot http://localhost:3000/ --allow-private --full --pre-scroll full-page --force-visible --settle 800 --json
-  sitesnap list --shots --json
-  sitesnap clean --older-than 7 --dry-run --json
-  sitesnap clean localhost_3000
-  sitesnap inspect https://example.com/ --selector ".cta" --props "letter-spacing" --json
-  sitesnap check http://localhost:3000/ --allow-private --strict --json
-  sitesnap site https://example.com/sitemap.xml --limit 10
-  sitesnap site https://example.com/sitemap.xml --exclude '\\?utm_'
-  sitesnap site https://example.com/sitemap.xml --concurrency 5 --min-interval 250
-  sitesnap site https://example.com/sitemap.xml --mobile-profile broad --json
-  sitesnap site https://example.com/sitemap.xml --strict
-  sitesnap site http://localhost:8080/sitemap.xml --allow-private
+例:
+  sitesnap capture https://example.com/
+  sitesnap capture --sitemap https://example.com/sitemap.xml --limit 20
+  sitesnap capture --input urls.txt --out ./sites
+  printf '%s\\n' https://a.example/ https://b.example/ | sitesnap capture --input -
+  sitesnap retry example.com
+  sitesnap list
 `
-
-export interface ShotCliOptions {
-  vp: Viewport | null
-  device: string | null
-  selector: string | null
-  settleMs: number | null
-  full: boolean
-  props: string[] | null
-  label: string | null
-  clicks: string[]
-  evalJs: string | null
-}
 
 export interface CliContext {
   sub: string | undefined
   args: string[]
-  json: boolean
-  strict: boolean
-  agentTask: boolean
+  json: true
   outDir: string
-  // --out もしくは SITESNAP_OUT が明示されたか。shot は未指定ならキャッシュへ出す
-  outDirExplicit: boolean
-  // shot / list --shots / clean が共有する shot の保存先。
-  // --out / SITESNAP_OUT 明示時は outDir、未指定なら OS キャッシュ。
-  // (site/page のアーカイブ outDir とは別。撮影・列挙・掃除はここで一致させる)
-  shotDir: string
-  // shot で撮った1枚をこのパスへ直接書き出す (--out-file)。未指定は null
   outFile: string | null
-  captureOptions: CaptureOptions
-  shotOptions: ShotCliOptions
+  sitemap: string | null
+  input: string | null
   limit: number | null
   exclude: RegExp | null
-  minInterval: number | null
-  // --min-interval から一度だけ生成する per-host レートリミッタ。
-  // site / retry が共有する (capture 系コマンドのみ使用)。captureOptions には
-  // 入れない: artifactOptions が options.json に JSON 化すると {} に潰れるため。
+  captureOptions: CaptureOptions
   rateLimiter?: HostRateLimiter
-  dryRun: boolean
-  olderThan: number | null
-  shots: boolean
 }
 
 function invalidOption(message: string, hint = "sitesnap help で利用可能なオプションを確認してください。"): SiteSnapError {
-  return new SiteSnapError("INVALID_OPTION", message, hint, {})
+  return new SiteSnapError("INVALID_OPTION", message, hint)
 }
 
-function parsePositiveInteger(value: string, flag: string): number {
-  const n = Number(value)
-  if (!Number.isInteger(n) || n <= 0) {
-    throw invalidOption(`${flag} には正の整数を指定してください: ${value}`, `${flag} <N> の形式で指定してください。`)
-  }
-  return n
+function positiveInteger(value: string, flag: string): number {
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed <= 0) throw invalidOption(`${flag}には正の整数を指定してください`, `${flag} <N> の形式で指定してください。`)
+  return parsed
 }
 
-function parseNonNegativeInteger(value: string, flag: string): number {
-  const n = Number(value)
-  if (!Number.isInteger(n) || n < 0) {
-    throw invalidOption(`${flag} には0以上の整数を指定してください: ${value}`, `${flag} <ms> の形式で指定してください。`)
-  }
-  return n
+function nonNegativeInteger(value: string, flag: string): number {
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 0) throw invalidOption(`${flag}には0以上の整数を指定してください`, `${flag} <ms> の形式で指定してください。`)
+  return parsed
 }
 
-const maxPositionalArgsBySubcommand: Record<string, number> = {
-  site: 1,
-  page: 1,
-  shot: 1,
-  inspect: 1,
-  check: 1,
-  login: 1,
-  list: 0,
-  open: 1,
-  retry: 1,
-  doctor: 1,
-  clean: 1,
-}
+const commands = new Set(["capture", "retry", "list", "login", "help"])
+const booleanFlags = new Set(["--json", "--force-visible", "--allow-private"])
+const valueFlags = new Set([
+  "--out", "--out-file", "-o", "--sitemap", "--input", "--limit", "--exclude",
+  "--concurrency", "--min-interval", "--wait-ms", "--pre-scroll", "--storage-state",
+  "--header", "--http-credentials",
+])
 
-const usageArgBySubcommand: Record<string, string> = {
-  site: " <sitemap-url>",
-  page: " <url>",
-  shot: " <url>",
-  inspect: " <url>",
-  check: " <url>",
-  login: " <url>",
-  open: " <domain>",
-  retry: " <domain>",
-  doctor: " <run-dir>",
-  clean: " [host]",
-}
-
-function validatePositionalArity(sub: string | undefined, args: string[]): void {
-  if (!sub) return
-  const maxArgs = maxPositionalArgsBySubcommand[sub]
-  if (maxArgs === undefined || args.length <= maxArgs) return
-
-  const extra = args.slice(maxArgs).join(" ")
-  const usageArg = usageArgBySubcommand[sub] || ""
-  throw invalidOption(
-    `${sub} コマンドの引数が多すぎます: ${extra}`,
-    `sitesnap ${sub}${usageArg} の形式で指定してください。`
-  )
+const allowedByCommand: Record<string, Set<string>> = {
+  capture: new Set([...booleanFlags, "--out", "--sitemap", "--input", "--limit", "--exclude", "--concurrency", "--min-interval", "--wait-ms", "--pre-scroll", "--storage-state", "--header", "--http-credentials"]),
+  retry: new Set([...booleanFlags, "--out", "--concurrency", "--min-interval", "--wait-ms", "--pre-scroll", "--storage-state", "--header", "--http-credentials"]),
+  list: new Set(["--json", "--out"]),
+  login: new Set(["--json", "--allow-private", "--out-file", "-o"]),
+  help: new Set(),
 }
 
 export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): CliContext {
   const sub = argv[0]
-  const json = argv.includes("--json")
-  const forceVisible = argv.includes("--force-visible")
-  const strict = argv.includes("--strict")
-  const allowPrivate = argv.includes("--allow-private")
-  const allowFile = argv.includes("--allow-file")
-  const agentTask = argv.includes("--agent-task")
-  const full = argv.includes("--full")
-  const dryRun = argv.includes("--dry-run")
-  const shots = argv.includes("--shots")
+  if (sub?.startsWith("-")) {
+    throw invalidOption(`不明なオプションです: ${sub}`)
+  }
+  if (sub && !commands.has(sub)) {
+    throw invalidOption(`不明なコマンドです: ${sub}`, "sitesnap help でコマンドを確認してください。")
+  }
+  if (!sub) {
+    return {
+      sub,
+      args: [],
+      json: true,
+      outDir: path.resolve(env.SITESNAP_OUT || DEFAULTS.sitesDir),
+      outFile: null,
+      sitemap: null,
+      input: null,
+      limit: null,
+      exclude: null,
+      captureOptions: {},
+    }
+  }
 
-  const envOutGiven = Boolean(env.SITESNAP_OUT)
+  const allowed = allowedByCommand[sub]!
+  const args: string[] = []
+  const headers: Record<string, string> = {}
   let outDir = env.SITESNAP_OUT || DEFAULTS.sitesDir
-  let outFlagGiven = false
   let outFile: string | null = null
+  let sitemap: string | null = null
+  let input: string | null = null
   let limit: number | null = null
   let exclude: RegExp | null = null
-  let concurrency: number | null = null
-  let minInterval: number | null = null
-  let waitMs: number | null = null
-  let preScroll: "full-page" | "none" | null = null
-  let vp: Viewport | null = null
-  let device: string | null = null
-  let selector: string | null = null
-  let settleMs: number | null = null
-  let props: string[] | null = null
-  let label: string | null = null
-  let evalJs: string | null = null
-  let olderThan: number | null = null
-  let mobileProfile: MobileProfile | null = null
-  let storageState: string | null = null
-  let httpCredentials: { username: string; password: string } | null = null
-  const headers: Record<string, string> = {}
-  const clicks: string[] = []
+  let concurrency: number | undefined
+  let minInterval: number | undefined
+  let waitMs: number | undefined
+  let preScroll: "full-page" | "none" | undefined
+  let forceVisible = false
+  let allowPrivate = false
+  let storageState: string | undefined
+  let httpCredentials: { username: string; password: string } | undefined
 
-  const flagSet = new Set([
-    "--json",
-    "--force-visible",
-    "--strict",
-    "--allow-private",
-    "--allow-file",
-    "--agent-task",
-    "--full",
-    "--dry-run",
-    "--shots",
-  ])
-  const valueFlags = new Set([
-    "--out",
-    "--out-file",
-    "-o",
-    "--limit",
-    "--exclude",
-    "--concurrency",
-    "--min-interval",
-    "--wait-ms",
-    "--pre-scroll",
-    "--vp",
-    "--device",
-    "--selector",
-    "--settle",
-    "--props",
-    "--label",
-    "--click",
-    "--eval",
-    "--older-than",
-    "--mobile-profile",
-    "--storage-state",
-    "--header",
-    "--http-credentials",
-  ])
-  const args: string[] = []
-  for (let i = 1; i < argv.length; i++) {
-    const a = argv[i]!
-    if (flagSet.has(a)) continue
-    if (valueFlags.has(a)) {
-      const v = argv[++i]
-      if (v === undefined) {
-        throw invalidOption(`${a} に値が指定されていません`, `${a} <value> の形式で指定してください。`)
-      }
-      if (a === "--out") {
-        outDir = v
-        outFlagGiven = true
-      } else if (a === "--out-file" || a === "-o") outFile = v
-      else if (a === "--limit") limit = parsePositiveInteger(v, a)
-      else if (a === "--exclude") {
-        try {
-          exclude = new RegExp(v)
-        } catch (e) {
-          throw invalidOption(`--exclude の正規表現が不正です: ${(e as Error).message}`, "--exclude <regex> の形式で指定してください。")
-        }
-      } else if (a === "--concurrency") concurrency = parsePositiveInteger(v, a)
-      else if (a === "--min-interval") minInterval = parseNonNegativeInteger(v, a)
-      else if (a === "--wait-ms") waitMs = parseNonNegativeInteger(v, a)
-      else if (a === "--pre-scroll") {
-        if (v !== "full-page" && v !== "none") {
-          throw invalidOption("--pre-scroll は full-page または none を指定してください", "--pre-scroll <full-page|none> の形式で指定してください。")
-        }
-        preScroll = v
-      } else if (a === "--vp") vp = parseViewport(v)
-      else if (a === "--device") device = v
-      else if (a === "--selector") selector = v
-      else if (a === "--settle") settleMs = parseNonNegativeInteger(v, a)
-      else if (a === "--props") props = v.split(",").map((p) => p.trim()).filter(Boolean)
-      else if (a === "--label") label = v
-      else if (a === "--click") clicks.push(v)
-      else if (a === "--eval") evalJs = v
-      else if (a === "--older-than") olderThan = parseNonNegativeInteger(v, a)
-      else if (a === "--mobile-profile") {
-        if (v !== "broad") {
-          throw invalidOption(
-            `--mobile-profile は broad のみ指定できます: ${v}`,
-            "--mobile-profile broad の形式で指定してください。"
-          )
-        }
-        mobileProfile = v
-      } else if (a === "--storage-state") storageState = resolveStorageStatePath(v)
-      else if (a === "--header") {
-        const [name, value] = parseHeaderFlag(v)
-        headers[name] = value
-      } else if (a === "--http-credentials") httpCredentials = parseHttpCredentials(v)
+  for (let index = 1; index < argv.length; index += 1) {
+    const token = argv[index]!
+    if (!token.startsWith("-")) {
+      args.push(token)
       continue
     }
-    if (a.startsWith("-")) {
-      throw invalidOption(`未知のオプションです: ${a}`)
+    if (!booleanFlags.has(token) && !valueFlags.has(token)) throw invalidOption(`不明なオプションです: ${token}`)
+    if (!allowed.has(token)) throw invalidOption(`${token}は${sub}コマンドでは使用できません`)
+    if (booleanFlags.has(token)) {
+      if (token === "--force-visible") forceVisible = true
+      if (token === "--allow-private") allowPrivate = true
+      continue
     }
-    args.push(a)
+    const value = argv[++index]
+    if (value === undefined || value.startsWith("--")) throw invalidOption(`${token}の値が不足しています`)
+    switch (token) {
+      case "--out": outDir = value; break
+      case "--out-file":
+      case "-o": outFile = path.resolve(value); break
+      case "--sitemap": sitemap = value; break
+      case "--input": input = value; break
+      case "--limit": limit = positiveInteger(value, token); break
+      case "--exclude":
+        try { exclude = new RegExp(value) } catch { throw invalidOption(`--excludeの正規表現が不正です: ${value}`) }
+        break
+      case "--concurrency": concurrency = positiveInteger(value, token); break
+      case "--min-interval": minInterval = nonNegativeInteger(value, token); break
+      case "--wait-ms": waitMs = nonNegativeInteger(value, token); break
+      case "--pre-scroll":
+        if (value !== "full-page" && value !== "none") throw invalidOption("--pre-scrollはfull-pageまたはnoneを指定してください")
+        preScroll = value
+        break
+      case "--storage-state": storageState = resolveStorageStatePath(value); break
+      case "--header": {
+        const [name, headerValue] = parseHeaderFlag(value)
+        headers[name] = headerValue
+        break
+      }
+      case "--http-credentials": httpCredentials = parseHttpCredentials(value); break
+    }
   }
-  outDir = path.resolve(outDir)
-  if (outFile !== null) outFile = path.resolve(outFile)
-  const outDirExplicit = outFlagGiven || envOutGiven
-  const shotDir = outDirExplicit ? outDir : shotCacheDir(env)
-  validatePositionalArity(sub, args)
 
-  if (mobileProfile && sub !== "site" && sub !== "page" && sub !== "retry") {
-    throw invalidOption(
-      "--mobile-profile は site / page / retry でのみ使用できます",
-      "sitesnap site または page で --mobile-profile broad を指定してください。"
-    )
+  const maxArgs = sub === "list" || sub === "help" ? 0 : 1
+  if (args.length > maxArgs) throw invalidOption(`${sub}コマンドの引数が多すぎます`)
+  if (sub !== "capture" && (sitemap || input || limit || exclude)) throw invalidOption(`入力filterはcaptureコマンドだけで使用できます`)
+  if (sub !== "capture" && sub !== "retry" && (concurrency !== undefined || minInterval !== undefined || waitMs !== undefined || preScroll || forceVisible || storageState || Object.keys(headers).length || httpCredentials)) {
+    throw invalidOption(`収集オプションはcaptureまたはretryで使用してください`)
   }
+  if (sub === "login" && !args[0]) throw invalidOption("loginにはURLが必要です", "sitesnap login <url> の形式で指定してください。")
+  if (sub === "retry" && !args[0]) throw invalidOption("retryにはdomainが必要です", "sitesnap retry <domain> の形式で指定してください。")
 
-  if (outFile !== null && sub !== "shot" && sub !== "login") {
-    throw invalidOption("--out-file は shot / login コマンドでのみ使用できます", "単一ファイル出力は sitesnap shot または login で指定してください。")
-  }
-
-  // 環境変数フォールバック: フラグ明示が優先。シェル履歴に残したくない場合に使う
-  if (!httpCredentials && env.SITESNAP_HTTP_CREDENTIALS) {
+  if ((sub === "capture" || sub === "retry") && !httpCredentials && env.SITESNAP_HTTP_CREDENTIALS) {
     httpCredentials = parseHttpCredentials(env.SITESNAP_HTTP_CREDENTIALS)
   }
-  if (outFile !== null && outFlagGiven) {
-    throw invalidOption("--out と --out-file は同時に指定できません", "出力先ディレクトリか出力ファイルのどちらか一方で指定してください。")
+  const captureOptions: CaptureOptions = {
+    outDir: path.resolve(outDir),
+    ...(concurrency !== undefined ? { concurrency } : {}),
+    ...(forceVisible ? { forceVisible: true } : {}),
+    ...(waitMs !== undefined ? { waitMs } : {}),
+    ...(preScroll ? { preScroll } : {}),
+    ...(allowPrivate ? { allowPrivate: true } : {}),
+    ...(storageState ? { storageState } : {}),
+    ...(Object.keys(headers).length ? { headers } : {}),
+    ...(httpCredentials ? { httpCredentials } : {}),
   }
-
-  if (vp && device) {
-    throw invalidOption("--vp と --device は同時に指定できません", "ビューポートはどちらか一方で指定してください。")
-  }
-  if (selector && full) {
-    throw invalidOption("--selector と --full は同時に指定できません", "要素撮影とフルページ撮影はどちらか一方で指定してください。")
-  }
-
   return {
     sub,
     args,
-    json,
-    strict,
-    agentTask,
-    outDir,
-    outDirExplicit,
-    shotDir,
+    json: true,
+    outDir: path.resolve(outDir),
     outFile,
-    captureOptions: {
-      forceVisible,
-      outDir,
-      allowPrivate,
-      allowFile,
-      concurrency: concurrency ?? undefined,
-      waitMs: waitMs ?? undefined,
-      preScroll: preScroll ?? undefined,
-      mobileProfile: mobileProfile ?? undefined,
-      storageState: storageState ?? undefined,
-      headers: Object.keys(headers).length > 0 ? headers : undefined,
-      httpCredentials: httpCredentials ?? undefined,
-    },
-    shotOptions: { vp, device, selector, settleMs, full, props, label, clicks, evalJs },
+    sitemap,
+    input,
     limit,
     exclude,
-    minInterval,
-    rateLimiter: minInterval ? createHostRateLimiter(minInterval) : undefined,
-    dryRun,
-    olderThan,
-    shots,
+    captureOptions,
+    ...(minInterval !== undefined && minInterval > 0 ? { rateLimiter: createHostRateLimiter(minInterval) } : {}),
   }
 }
