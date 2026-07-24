@@ -1,9 +1,8 @@
 import { expect, test } from "bun:test"
 import { SiteSnapError } from "../src/errors.ts"
-import { formatError, formatSuccess } from "../src/output.ts"
+import { formatError } from "../src/output.ts"
 
-test("success and error output are always machine-readable JSON", () => {
-  expect(JSON.parse(formatSuccess({ command: "list" }))).toEqual({ success: true, command: "list" })
+test("errors are always machine-readable JSON", () => {
   expect(JSON.parse(formatError(new SiteSnapError("INVALID_URL", "bad", "fix", { url: "ftp://x" })))).toEqual({
     success: false,
     error: { code: "INVALID_URL", message: "bad", hint: "fix", url: "ftp://x" },

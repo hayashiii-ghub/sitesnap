@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs"
+import { validateHeaderName, validateHeaderValue } from "node:http"
 import path from "node:path"
 import { SiteSnapError } from "./errors.ts"
 
@@ -23,6 +24,17 @@ export function parseHeaderFlag(value: string): [string, string] {
       "INVALID_OPTION",
       "--header の形式が不正です",
       '--header "Name: value" の形式で指定してください (例: --header "Authorization: Bearer TOKEN")。',
+      {}
+    )
+  }
+  try {
+    validateHeaderName(name)
+    validateHeaderValue(name, headerValue)
+  } catch {
+    throw new SiteSnapError(
+      "INVALID_OPTION",
+      "--header の形式が不正です",
+      '--header "Name: value" の形式で、有効なHTTPヘッダ名と値を指定してください。',
       {}
     )
   }

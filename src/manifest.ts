@@ -40,10 +40,19 @@ export interface ArchiveIndexEntry {
   manifest: string
 }
 
+export interface ArchiveIndexError {
+  directory: string
+  manifest: string
+  code: string
+  message: string
+}
+
 export interface ArchiveIndex {
   schema_version: typeof SCHEMA_VERSION
   updated_at: string
+  status: CollectionStatus
   archives: ArchiveIndexEntry[]
+  errors: ArchiveIndexError[]
 }
 
 async function writeJsonAtomic(file: string, value: unknown): Promise<void> {
@@ -69,14 +78,16 @@ function safeArtifactPath(value: unknown): boolean {
 }
 
 function validCapture(value: unknown): value is ManifestCapture {
-  return isRecord(value)
+  if (!(isRecord(value)
     && (value.status === "success" || value.status === "failed")
     && safeArtifactPath(value.path)
     && typeof value.captured_at === "string"
     && (value.http_status === null || typeof value.http_status === "number")
     && (value.duration_ms === null || typeof value.duration_ms === "number")
     && (value.error === null || typeof value.error === "string")
-    && (value.device === undefined || typeof value.device === "string")
+    && (value.device === undefined || typeof value.device === "string"))) return false
+  if (value.status === "success") return typeof value.path === "string" && value.path.length > 0 && value.error === null
+  return typeof value.error === "string" && value.error.length > 0
 }
 
 function validateManifest(value: unknown, file: string): ArchiveManifest {
@@ -91,11 +102,23 @@ function validateManifest(value: unknown, file: string): ArchiveManifest {
   const urls = new Set<string>()
   for (const page of value.pages) {
     if (!isRecord(page) || typeof page.url !== "string" || typeof page.slug !== "string" || typeof page.title !== "string" || !isRecord(page.captures)) throw invalidManifest(file)
+    let pageUrl: URL
+    try {
+      pageUrl = new URL(page.url)
+    } catch {
+      throw invalidManifest(file, `manifestに不正なURLがあります: ${page.url}`)
+    }
+    if ((pageUrl.protocol !== "http:" && pageUrl.protocol !== "https:") || pageUrl.hostname !== value.domain) {
+      throw invalidManifest(file, `manifestのpage URLがarchive domainと一致しません: ${page.url}`)
+    }
     if (urls.has(page.url)) throw invalidManifest(file, `manifestに重複URLがあります: ${page.url}`)
     urls.add(page.url)
     for (const [mode, capture] of Object.entries(page.captures)) {
       if ((mode !== "desktop" && mode !== "mobile") || !validCapture(capture)) throw invalidManifest(file)
     }
+  }
+  if (archiveStatus(value.pages as ManifestPage[]) !== value.status) {
+    throw invalidManifest(file, "manifestのstatusがcapture内容と一致しません")
   }
   return value as unknown as ArchiveManifest
 }
@@ -121,8 +144,8 @@ async function readManifestFile(file: string): Promise<ArchiveManifest | null> {
 }
 
 function archiveStatus(pages: ManifestPage[]): CollectionStatus {
-  const captures = pages.flatMap((page) => Object.values(page.captures))
-  const failed = captures.filter((capture) => capture?.status === "failed").length
+  const captures = pages.flatMap((page) => [page.captures.desktop, page.captures.mobile])
+  const failed = captures.filter((capture) => !capture || capture.status === "failed").length
   if (failed === 0) return "complete"
   if (failed === captures.length) return "failed"
   return "partial"
@@ -176,6 +199,7 @@ export async function writeArchiveManifest(options: {
     status: archiveStatus(sortedPages),
     pages: sortedPages,
   }
+  validateManifest(manifest, file)
   await writeJsonAtomic(file, manifest)
   return manifest
 }
@@ -187,14 +211,26 @@ export async function readArchiveManifest(siteDir: string): Promise<ArchiveManif
 export async function buildArchiveIndex(outDir: string): Promise<ArchiveIndex> {
   await mkdir(outDir, { recursive: true })
   const archives: ArchiveIndexEntry[] = []
+  const errors: ArchiveIndexError[] = []
   for (const entry of await readdir(outDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
-    const manifest = await readArchiveManifest(path.join(outDir, entry.name))
-    if (!manifest) continue
-    archives.push({ domain: manifest.domain, status: manifest.status, pages: manifest.pages.length, updated_at: manifest.updated_at, manifest: path.join(entry.name, "manifest.json") })
+    try {
+      const manifest = await readArchiveManifest(path.join(outDir, entry.name))
+      if (!manifest) continue
+      archives.push({ domain: manifest.domain, status: manifest.status, pages: manifest.pages.length, updated_at: manifest.updated_at, manifest: path.join(entry.name, "manifest.json") })
+    } catch (error) {
+      errors.push({
+        directory: entry.name,
+        manifest: path.join(entry.name, "manifest.json"),
+        code: error instanceof SiteSnapError ? error.code : "UNKNOWN_ERROR",
+        message: error instanceof Error ? error.message : String(error),
+      })
+    }
   }
   archives.sort((a, b) => a.domain.localeCompare(b.domain))
-  const index: ArchiveIndex = { schema_version: SCHEMA_VERSION, updated_at: new Date().toISOString(), archives }
+  errors.sort((a, b) => a.directory.localeCompare(b.directory))
+  const status: CollectionStatus = errors.length === 0 ? "complete" : archives.length === 0 ? "failed" : "partial"
+  const index: ArchiveIndex = { schema_version: SCHEMA_VERSION, updated_at: new Date().toISOString(), status, archives, errors }
   await writeJsonAtomic(path.join(outDir, "index.json"), index)
   return index
 }

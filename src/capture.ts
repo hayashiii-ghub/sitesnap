@@ -8,13 +8,11 @@ import { authContextOptions, type AuthOptions } from "./auth.ts"
 import { DEFAULTS } from "./config.ts"
 import { defaultMobileDeviceName, deviceContextOptions } from "./devices.ts"
 import { SiteSnapError } from "./errors.ts"
+import { installNetworkPolicy } from "./network-policy.ts"
+import type { HostRateLimiter } from "./rate-limit.ts"
 import { assertPublicUrl, assertPublicUrlResolved, type HostLookup } from "./url-guard.ts"
 
 export type CaptureMode = "desktop" | "mobile"
-
-export interface HostRateLimiter {
-  wait(host: string): Promise<void>
-}
 
 export interface CaptureOptions extends AuthOptions {
   outDir?: string
@@ -185,61 +183,6 @@ export const FORCE_VISIBLE_CSS = `
   }
 `
 
-async function installNetworkPolicy(
-  context: BrowserContext,
-  targetUrl: string,
-  opts: CaptureOptions
-): Promise<() => Error | undefined> {
-  const authOrigin = opts.authOrigin ?? new URL(targetUrl).origin
-  const customHeaders = opts.headers ?? {}
-  const customNames = new Set(Object.keys(customHeaders).map((name) => name.toLowerCase()))
-  const checked = new Map<string, Promise<void>>()
-  let policyError: Error | undefined
-
-  const validate = (rawUrl: string) => {
-    const parsed = new URL(rawUrl)
-    if (parsed.protocol === "ws:") parsed.protocol = "http:"
-    if (parsed.protocol === "wss:") parsed.protocol = "https:"
-    const existing = checked.get(parsed.origin)
-    if (existing) return existing
-    const pending = assertPublicUrlResolved(parsed.href, { allowPrivate: opts.allowPrivate, lookup: opts.lookup })
-    checked.set(parsed.origin, pending)
-    return pending
-  }
-
-  await context.route("**/*", async (route) => {
-    const requestUrl = route.request().url()
-    try {
-      await validate(requestUrl)
-    } catch (error) {
-      policyError ??= error as Error
-      await route.abort("blockedbyclient")
-      return
-    }
-
-    if (customNames.size === 0) {
-      await route.continue()
-      return
-    }
-    const headers = Object.fromEntries(
-      Object.entries(route.request().headers()).filter(([name]) => !customNames.has(name.toLowerCase()))
-    )
-    if (new URL(requestUrl).origin === authOrigin) Object.assign(headers, customHeaders)
-    await route.continue({ headers })
-  })
-
-  await context.routeWebSocket("**/*", async (webSocket) => {
-    try {
-      await validate(webSocket.url())
-      webSocket.connectToServer()
-    } catch (error) {
-      policyError ??= error as Error
-      await webSocket.close({ code: 1008, reason: "blocked by sitesnap URL policy" })
-    }
-  })
-  return () => policyError
-}
-
 async function captureOne(browser: Browser, task: CaptureTask, siteDir: string, opts: CaptureOptions): Promise<CaptureResult> {
   const startedAt = Date.now()
   const slug = archiveFileStem(task.url)
@@ -271,6 +214,8 @@ async function captureOne(browser: Browser, task: CaptureTask, siteDir: string, 
     if (opts.preScroll !== "none") await autoScroll(page)
     await page.evaluate(() => (document as Document & { fonts?: { ready?: Promise<unknown> } }).fonts?.ready).catch(() => {})
     await page.waitForFunction(() => [...document.images].every((image) => image.complete), null, { timeout: 10000 }).catch(() => {})
+    const networkError = getPolicyError()
+    if (networkError) throw networkError
 
     const temporary = `${file}.tmp-${randomUUID()}.png`
     try {

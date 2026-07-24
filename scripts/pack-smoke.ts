@@ -103,6 +103,22 @@ try {
 
   const version = run(bin, ["--version"], installDir).trim()
   assert(version === pkg.version, `expected installed CLI version ${pkg.version}, got ${version}`)
+
+  const help = run(bin, ["help"], installDir)
+  assert(help.includes("sitesnap capture"), "installed CLI help is missing capture")
+  for (const removed of ["sitesnap shot", "sitesnap check", "sitesnap inspect", "sitesnap doctor"]) {
+    assert(!help.includes(removed), `installed CLI help still exposes removed command: ${removed}`)
+  }
+
+  const listed = JSON.parse(run(bin, ["list"], installDir)) as {
+    success?: boolean
+    schema_version?: number
+    archives?: unknown[]
+  }
+  assert(listed.success === true, "installed CLI list did not succeed")
+  assert(listed.schema_version === 1, "installed CLI list returned an unexpected schema")
+  assert(Array.isArray(listed.archives), "installed CLI list did not return archives[]")
+  console.log("pack smoke: ok")
 } finally {
   rmSync(packTmp, { recursive: true, force: true })
   rmSync(npmCache, { recursive: true, force: true })

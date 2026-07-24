@@ -15,7 +15,7 @@ import type { CliContext } from "./cli-args.ts"
 import { SiteSnapError } from "./errors.ts"
 import { loadCaptureUrls, parseCaptureSource, type CaptureSource, type RunSource } from "./input.ts"
 import { runLogin } from "./login.ts"
-import { buildArchiveIndex, readArchiveManifest, writeArchiveManifest } from "./manifest.ts"
+import { buildArchiveIndex, readArchiveManifest, writeArchiveManifest, type ArchiveIndex } from "./manifest.ts"
 import { captureFailureMessage, combineStatuses, SCHEMA_VERSION, statusFromResults, type CollectionStatus } from "./protocol.ts"
 import { writeRunArtifact } from "./run-artifact.ts"
 
@@ -30,6 +30,7 @@ export type CommandHandler = (ctx: CliContext) => Promise<CommandResult>
 interface ArchiveRunResult {
   domain: string
   status: CollectionStatus
+  archive_status: CollectionStatus | null
   run_status: CollectionStatus
   requested: number
   succeeded: number
@@ -62,10 +63,21 @@ function runOptions(ctx: CliContext): Record<string, unknown> {
   }
 }
 
-function originForAuthentication(urls: string[], options: CaptureOptions): string | undefined {
+function originForAuthentication(urls: string[], options: CaptureOptions, source?: CaptureSource): string | undefined {
   const hasScopedAuthentication = Boolean(options.httpCredentials || (options.headers && Object.keys(options.headers).length > 0))
   if (!hasScopedAuthentication) return undefined
   const origins = [...new Set(urls.map((url) => new URL(url).origin))]
+  if (source?.kind === "sitemap") {
+    const sitemapOrigin = new URL(source.value).origin
+    if (origins.some((origin) => origin !== sitemapOrigin)) {
+      throw new SiteSnapError(
+        "INVALID_OPTION",
+        "認証付きsitemapでは全ページをsitemapと同じoriginにしてください",
+        "別originのページは認証情報を付けない別のcaptureとして実行してください。"
+      )
+    }
+    return sitemapOrigin
+  }
   if (origins.length !== 1) {
     throw new SiteSnapError(
       "INVALID_OPTION",
@@ -106,6 +118,7 @@ async function collectHost(options: {
     return {
       domain,
       status: "failed",
+      archive_status: null,
       run_status: "failed",
       requested: tasks.length,
       succeeded: 0,
@@ -113,6 +126,32 @@ async function collectHost(options: {
       manifest: null,
       run_artifact: null,
       error: error instanceof Error ? error.message : String(error),
+    }
+  }
+
+  try {
+    const existing = await readArchiveManifest(siteDir)
+    if (existing && existing.domain !== domain) {
+      throw new SiteSnapError(
+        "MANIFEST_INVALID",
+        `manifestのdomainがarchiveと一致しません: ${existing.domain}`,
+        "archiveのmanifestを修復するか別の--outを指定してください。既存artifactは変更されません。"
+      )
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    logs.push(`[${domain}] manifest preflight error: ${message}`)
+    return {
+      domain,
+      status: "failed",
+      archive_status: null,
+      run_status: "failed",
+      requested: tasks.length,
+      succeeded: 0,
+      failed: tasks.length,
+      manifest: null,
+      run_artifact: null,
+      error: message,
     }
   }
 
@@ -134,9 +173,29 @@ async function collectHost(options: {
 
   const runStatus = statusFromResults(results)
   const failed = results.filter((result) => captureFailureMessage(result)).length
+  let manifest: Awaited<ReturnType<typeof writeArchiveManifest>>
+  const manifestPath = path.join(siteDir, "manifest.json")
   try {
     await mkdir(siteDir, { recursive: true })
-    const manifest = await writeArchiveManifest({ domain, siteDir, source: manifestSource, results })
+    manifest = await writeArchiveManifest({ domain, siteDir, source: manifestSource, results })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    logs.push(`[${domain}] archive manifest error: ${message}`)
+    return {
+      domain,
+      status: "failed",
+      archive_status: null,
+      run_status: runStatus,
+      requested: results.length,
+      succeeded: results.length - failed,
+      failed,
+      manifest: null,
+      run_artifact: null,
+      error: message,
+    }
+  }
+
+  try {
     const runArtifact = await writeRunArtifact({
       domain,
       siteDir,
@@ -148,24 +207,26 @@ async function collectHost(options: {
     return {
       domain,
       status: manifest.status,
+      archive_status: manifest.status,
       run_status: runStatus,
       requested: results.length,
       succeeded: results.length - failed,
       failed,
-      manifest: path.join(siteDir, "manifest.json"),
+      manifest: manifestPath,
       run_artifact: runArtifact,
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    logs.push(`[${domain}] archive metadata error: ${message}`)
+    logs.push(`[${domain}] run artifact error: ${message}`)
     return {
       domain,
-      status: "failed",
+      status: combineStatuses([manifest.status, "failed"]),
+      archive_status: manifest.status,
       run_status: runStatus,
       requested: results.length,
       succeeded: results.length - failed,
       failed,
-      manifest: null,
+      manifest: manifestPath,
       run_artifact: null,
       error: message,
     }
@@ -184,14 +245,13 @@ function applyFilters(ctx: CliContext, urls: string[]): string[] {
   return filtered
 }
 
-async function refreshIndex(outDir: string, logs: string[]): Promise<string | null> {
+async function refreshIndex(outDir: string, logs: string[]): Promise<{ index: ArchiveIndex | null; error: string | null }> {
   try {
-    await buildArchiveIndex(outDir)
-    return null
+    return { index: await buildArchiveIndex(outDir), error: null }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     logs.push(`[index] ${message}`)
-    return message
+    return { index: null, error: message }
   }
 }
 
@@ -204,7 +264,10 @@ async function cmdCapture(ctx: CliContext): Promise<CommandResult> {
     headers: Object.keys(fetchHeaders).length ? fetchHeaders : undefined,
     lookup: ctx.captureOptions.lookup,
   }))
-  const authOrigin = originForAuthentication(urls, ctx.captureOptions)
+  if (urls.length === 0) {
+    throw new SiteSnapError("INVALID_URL", "収集対象URLがありません", "入力内容、--exclude、--limit、sitemapを確認してください。")
+  }
+  const authOrigin = originForAuthentication(urls, ctx.captureOptions, source)
   const archives: ArchiveRunResult[] = []
   for (const [domain, hostUrls] of groupUrlsByHost(urls)) {
     archives.push(await collectHost({
@@ -217,7 +280,8 @@ async function cmdCapture(ctx: CliContext): Promise<CommandResult> {
       logs,
     }))
   }
-  const indexError = await refreshIndex(ctx.outDir, logs)
+  const indexResult = await refreshIndex(ctx.outDir, logs)
+  const indexError = indexResult.error
   const status = combineStatuses([...archives.map((archive) => archive.status), ...(indexError ? ["failed" as const] : [])])
   const requested = archives.reduce((sum, archive) => sum + archive.requested, 0)
   const failed = archives.reduce((sum, archive) => sum + archive.failed, 0)
@@ -230,6 +294,8 @@ async function cmdCapture(ctx: CliContext): Promise<CommandResult> {
     summary: { urls: urls.length, captures_requested: requested, captures_succeeded: requested - failed, captures_failed: failed },
     archives,
     out_dir: ctx.outDir,
+    index_status: indexResult.index?.status ?? "failed",
+    index_errors: indexResult.index?.errors ?? [],
     ...(indexError ? { index_error: indexError } : {}),
   }, status === "complete" ? 0 : 1, logs.join("\n"))
 }
@@ -245,13 +311,11 @@ async function cmdRetry(ctx: CliContext): Promise<CommandResult> {
     throw new SiteSnapError("MANIFEST_INVALID", `manifestのdomainがarchiveと一致しません: ${existing.domain}`, "archiveのmanifestを修復してください。", { domain })
   }
   const tasks: CaptureTask[] = existing.pages.flatMap((page) =>
-    Object.entries(page.captures)
-      .filter(([, capture]) => capture?.status === "failed")
-      .map(([mode, capture]) => ({
-        url: page.url,
-        mode: mode as CaptureTask["mode"],
-        ...(capture?.device ? { device: capture.device } : {}),
-      }))
+    buildCaptureTasks([page.url]).filter((task) => {
+      const capture = page.captures[task.mode]
+      if (capture?.device) task.device = capture.device
+      return !capture || capture.status === "failed"
+    })
   )
   if (tasks.length === 0) {
     return json({
@@ -260,14 +324,15 @@ async function cmdRetry(ctx: CliContext): Promise<CommandResult> {
       command: "retry",
       status: existing.status,
       summary: { captures_requested: 0, captures_succeeded: 0, captures_failed: 0 },
-      archives: [{ domain, status: existing.status, run_status: "complete", requested: 0, succeeded: 0, failed: 0, manifest: path.join(siteDir, "manifest.json"), run_artifact: null }],
+      archives: [{ domain, status: existing.status, archive_status: existing.status, run_status: "complete", requested: 0, succeeded: 0, failed: 0, manifest: path.join(siteDir, "manifest.json"), run_artifact: null }],
       out_dir: ctx.outDir,
     })
   }
   const authOrigin = originForAuthentication(tasks.map((task) => task.url), ctx.captureOptions)
   const logs: string[] = []
   const archive = await collectHost({ ctx, domain, tasks, runSource: { kind: "retry", value: domain }, authOrigin, logs })
-  const indexError = await refreshIndex(ctx.outDir, logs)
+  const indexResult = await refreshIndex(ctx.outDir, logs)
+  const indexError = indexResult.error
   const status = combineStatuses([archive.status, ...(indexError ? ["failed" as const] : [])])
   return json({
     success: status === "complete",
@@ -277,13 +342,15 @@ async function cmdRetry(ctx: CliContext): Promise<CommandResult> {
     summary: { captures_requested: archive.requested, captures_succeeded: archive.succeeded, captures_failed: archive.failed },
     archives: [archive],
     out_dir: ctx.outDir,
+    index_status: indexResult.index?.status ?? "failed",
+    index_errors: indexResult.index?.errors ?? [],
     ...(indexError ? { index_error: indexError } : {}),
   }, status === "complete" ? 0 : 1, logs.join("\n"))
 }
 
 async function cmdList(ctx: CliContext): Promise<CommandResult> {
   const index = await buildArchiveIndex(ctx.outDir)
-  return json({ success: true, command: "list", ...index, out_dir: ctx.outDir })
+  return json({ success: index.status === "complete", command: "list", ...index, out_dir: ctx.outDir }, index.status === "complete" ? 0 : 1)
 }
 
 async function cmdLogin(ctx: CliContext): Promise<CommandResult> {

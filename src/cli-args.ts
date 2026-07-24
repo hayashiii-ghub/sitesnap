@@ -50,7 +50,7 @@ login限定:
   sitesnap capture https://example.com/
   sitesnap capture --sitemap https://example.com/sitemap.xml --limit 20
   sitesnap capture --input urls.txt --out ./sites
-  printf '%s\n' https://a.example/ https://b.example/ | sitesnap capture --input -
+  printf '%s\\n' https://a.example/ https://b.example/ | sitesnap capture --input -
   sitesnap retry example.com
   sitesnap list
 `
@@ -103,10 +103,13 @@ const allowedByCommand: Record<string, Set<string>> = {
 
 export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): CliContext {
   const sub = argv[0]
-  if (sub && !sub.startsWith("-") && !commands.has(sub)) {
+  if (sub?.startsWith("-")) {
+    throw invalidOption(`不明なオプションです: ${sub}`)
+  }
+  if (sub && !commands.has(sub)) {
     throw invalidOption(`不明なコマンドです: ${sub}`, "sitesnap help でコマンドを確認してください。")
   }
-  if (!sub || sub.startsWith("-")) {
+  if (!sub) {
     return {
       sub,
       args: [],

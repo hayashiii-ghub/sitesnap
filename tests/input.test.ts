@@ -28,10 +28,12 @@ test("input files ignore comments/blanks, preserve order, and deduplicate", asyn
   }
 })
 
-test("stdin input and private DNS resolution are validated", async () => {
+test("stdin input is parsed while DNS/private policy is deferred to each host capture", async () => {
   async function* stdin() { yield "https://example.com/\n" }
   expect(await loadCaptureUrls({ kind: "input", value: "-" }, { stdin: stdin(), lookup: publicLookup })).toEqual(["https://example.com/"])
-  await expect(loadCaptureUrls({ kind: "page", value: "https://internal.example/" }, {
+  expect(await loadCaptureUrls({ kind: "page", value: "https://internal.example/" }, {
     lookup: async () => [{ address: "10.0.0.2", family: 4 }],
-  })).rejects.toMatchObject({ code: "PRIVATE_URL_BLOCKED" })
+  })).toEqual(["https://internal.example/"])
+  await expect(loadCaptureUrls({ kind: "page", value: "file:///tmp/page.html" })).rejects.toMatchObject({ code: "INVALID_URL" })
+  await expect(loadCaptureUrls({ kind: "sitemap", value: "not-a-url" })).rejects.toMatchObject({ code: "INVALID_URL" })
 })

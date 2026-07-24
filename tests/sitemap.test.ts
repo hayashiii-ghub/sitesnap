@@ -84,3 +84,16 @@ test("HTML and excessive recursion fail with structured errors", async () => {
     globalThis.fetch = original
   }
 })
+
+test("malformed sitemap URLs and stalled responses fail structurally", async () => {
+  await expect(expandSitemap("not-a-url")).rejects.toMatchObject({ code: "INVALID_URL" })
+  const stalled = Bun.serve({ port: 0, fetch: () => new Promise<Response>(() => {}) })
+  try {
+    await expect(expandSitemap(`http://127.0.0.1:${stalled.port}/sitemap.xml`, {
+      allowPrivate: true,
+      fetchTimeoutMs: 50,
+    })).rejects.toMatchObject({ code: "SITEMAP_FETCH_FAILED" })
+  } finally {
+    stalled.stop(true)
+  }
+})

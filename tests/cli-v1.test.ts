@@ -44,3 +44,12 @@ test("login accepts only its URL, output file, and private opt-in", () => {
   expect(context.captureOptions.allowPrivate).toBeTrue()
   expect(() => parseCliArgs(["login", "https://example.com", "--header", "X: y"])).toThrow(SiteSnapError)
 })
+
+test("an unknown leading flag is a structured INVALID_OPTION", () => {
+  expect(() => parseCliArgs(["--bogus"])).toThrow(SiteSnapError)
+  try {
+    parseCliArgs(["--bogus"])
+  } catch (error) {
+    expect((error as SiteSnapError).code).toBe("INVALID_OPTION")
+  }
+})

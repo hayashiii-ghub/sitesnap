@@ -1,9 +1,5 @@
 import { SiteSnapError } from "./errors.ts"
 
-export function formatSuccess(data: Record<string, unknown>): string {
-  return JSON.stringify({ success: true, ...data })
-}
-
 export function formatError(error: unknown): string {
   if (error instanceof SiteSnapError) return JSON.stringify({ success: false, error: error.toJSON() })
   return JSON.stringify({

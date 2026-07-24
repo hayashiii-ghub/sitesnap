@@ -23,7 +23,7 @@ export function isPrivateHost(host: string | null | undefined): boolean {
     if (first >= 224) return true
   }
 
-  if (/^fe[89ab][0-9a-f]:/i.test(h)) return true
+  if (/^fe[89ab][0-9a-f]:/i.test(h) || /^fe[c-f][0-9a-f]:/i.test(h)) return true
   if (/^f[cd][0-9a-f]{2}:/i.test(h)) return true
   if (/^ff[0-9a-f]{2}:/i.test(h) || /^2001:db8:/i.test(h)) return true
 
@@ -33,6 +33,8 @@ export function isPrivateHost(host: string | null | undefined): boolean {
     const lo = parseInt(mapped[2]!, 16)
     return isPrivateHost(`${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`)
   }
+  const dottedMapped = h.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i)
+  if (dottedMapped) return isPrivateHost(dottedMapped[1])
   return false
 }
 
@@ -73,7 +75,8 @@ export async function assertPublicUrlResolved(url: string, opts: ResolvedUrlGuar
   assertPublicUrl(url, opts)
   if (opts.allowPrivate) return
   const hostname = new URL(url).hostname.replace(/^\[|\]$/g, "")
-  if (isIP(hostname)) return
+  const literalFamily = isIP(hostname)
+  if (literalFamily) return
 
   let addresses: ResolvedAddress[]
   try {

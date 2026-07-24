@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises"
 import { SiteSnapError } from "./errors.ts"
 import { expandSitemap } from "./sitemap.ts"
-import { assertPublicUrlResolved, type HostLookup } from "./url-guard.ts"
+import { assertPublicUrl, type HostLookup } from "./url-guard.ts"
 
 export type CaptureSource =
   | { kind: "page"; value: string }
@@ -42,7 +42,6 @@ export async function loadCaptureUrls(source: CaptureSource, opts: LoadCaptureUr
     urls = await expandSitemap(source.value, {
       allowPrivate: opts.allowPrivate,
       headers: opts.headers,
-      authOrigin: new URL(source.value).origin,
       lookup: opts.lookup,
     })
   } else {
@@ -57,6 +56,6 @@ export async function loadCaptureUrls(source: CaptureSource, opts: LoadCaptureUr
     urls = content.split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith("#"))
   }
   const unique = [...new Set(urls)]
-  await Promise.all(unique.map((url) => assertPublicUrlResolved(url, opts)))
+  for (const url of unique) assertPublicUrl(url, { allowPrivate: true })
   return unique
 }

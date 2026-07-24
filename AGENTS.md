@@ -1,284 +1,61 @@
-# sitesnap - AI Agent Guide
+# sitesnap — AI Agent Guide
 
-## What is sitesnap
+## Purpose
 
-`@hayashiii/sitesnap` is a Playwright-based screenshot CLI designed to be invoked by AI agents (Claude Code, Codex, etc.). Its main use is a **shoot-and-fix dev loop** on a site under development — capture a screenshot, gate it on health checks, and verify layout numerically. It also does sitemap bulk capture and portfolio/site-archive workflows.
+`@hayashiii/sitesnap` collects remote websites into persistent desktop/mobile screenshot archives. It is not a development-loop UI verifier. Use `shimon` for project-defined UI cases, responsive checks, health checks, and implementation evidence.
 
-## When to use
-
-- You are iterating on a site under development and need a screenshot of a specific viewport, element, or post-animation state (`shot`)
-- You want a one-shot health gate before declaring a page done — overflow, console errors, failed requests, a11y (`check`)
-- You need to verify layout numerically — computed styles, bounding boxes, text, overflow amounts (`inspect`)
-- You need to set DOM state before the shot — CSS radio tabs, `<details>` toggles — via `--click` / `--eval`, or shoot a local `file://` mock with `--allow-file`
-- The user asks to capture or archive a website's pages as PNG images, or references a sitemap.xml for batch capture (`site` / `page`)
-- A captured run failed and the user wants retry guidance or an agent handoff task (`doctor`)
-
-## Quick Reference
+## Commands
 
 ```bash
-sitesnap site <sitemap-url>           # Capture all pages from sitemap
-sitesnap page <url>                   # Capture single page
-sitesnap shot <url>                   # One-off dev-loop screenshot
-sitesnap inspect <url>                # Element style/box/text/overflow as JSON
-sitesnap check <url>                  # Pass/fail: overflow, console errors, failed requests, a11y
-sitesnap list                         # List captured sites (--shots to list shots)
-sitesnap clean [host]                 # Delete accumulated shots (archives untouched)
-sitesnap open <domain>                # Open site folder in Finder
-sitesnap retry <domain>               # Retry failed pages
-sitesnap doctor <run-dir>             # Diagnose a capture run, suggest a retry
-sitesnap login <url>                  # Interactive login → save session for --storage-state
-sitesnap help                         # Help
-sitesnap --version                    # Version
+sitesnap capture <url>
+sitesnap capture --sitemap <url>
+sitesnap capture --input <file|->
+sitesnap retry <domain>
+sitesnap list
+sitesnap login <url> -o auth.json
 ```
 
-Always pass `--json` when invoked by an agent for structured output.
+All operational output is JSON on stdout. Progress is stderr. `--json` is optional and accepted for compatibility.
 
-## Input formats
+## Agent workflow
 
-- HTTP/HTTPS URLs (publicly accessible)
-- Use `--allow-private` for localhost/private IPs
-- `sitesnap site` expects sitemap XML; use `sitesnap page` for ordinary HTML pages
+1. Choose exactly one input: page URL, sitemap URL, or newline-delimited URL list.
+2. For large sitemaps, explore with `--limit`; for full collection, keep `--concurrency` modest and add `--min-interval`.
+3. Parse `success`, `status`, and `archives[]` from stdout.
+4. Report each absolute `manifest` and `run_artifact` path.
+5. Retry only capture failures with a non-null `run_artifact`, adjusting `--wait-ms`, `--pre-scroll`, or `--force-visible`. A null artifact or manifest/schema error requires repair or a new `--out`.
 
-## Capture options
+## Important behavior
 
-```bash
-sitesnap site https://example.com/sitemap.xml \
-  --concurrency 3 \
-  --min-interval 250 \
-  --json
-```
+- Every URL gets a full-page desktop `1440×900` capture and a Playwright `iPhone 15` capture.
+- Exit 0 means `complete`. `partial` and `failed` exit 1 but still return structured JSON and any completed archives.
+- HTTP 400+ is a failed capture.
+- Multi-host DNS validation, capture, and persistence are isolated per host.
+- `manifest.json` is cumulative; `runs/latest.json` describes only the latest run.
+- Never edit, delete, or replace a corrupt/unsupported manifest automatically. sitesnap preserves it and reports an error.
+- `index.json` keeps valid `archives[]` and unreadable `errors[]`; `list` exits non-zero when errors remain.
 
-- Use `--out <dir>` when captures should be written outside `./sites/`.
-- Use `--force-visible` when screenshots are blank because content is hidden by scroll-reveal animations (AOS, wow.js, Framer Motion `motion/react` `whileInView`).
-- Use `--limit <N>` during exploration before capturing a large sitemap.
-- Use `--exclude <regex>` to skip tracking URLs or irrelevant page groups.
-- Use `--wait-ms <ms>` and `--pre-scroll <full-page|none>` when a retry needs different screenshot timing.
-- Use `--strict` in CI when any failed page should fail the command.
+## Private and authenticated targets
 
-## Dev-loop screenshots (`shot`)
+- Public HTTP(S) is the default. Use `--allow-private` only when the user intentionally supplied a localhost/private target.
+- `--header` and `--http-credentials` are origin-scoped. Do not split secrets across multiple origins in one invocation.
+- An authenticated sitemap must list pages on its own origin; split cross-origin page collection into separate unauthenticated or origin-specific runs.
+- Ask the user to perform `sitesnap login`; do not request their password. Treat the resulting storage state as a secret and ensure it is gitignored.
+- Never echo header values, Basic credentials, or storage-state contents in reports.
 
-Use `shot` instead of `page` while developing a site. It captures viewport-only by default (AI-readable, unlike a 9000px-tall full-page PNG), returns the absolute file path directly in JSON, and never touches meta.json.
+## Recovery
 
-```bash
-sitesnap shot http://localhost:3000/about --allow-private --json          # above-the-fold at 1440x900
-sitesnap shot http://localhost:3000/ --selector "footer" --allow-private --json   # one element only
-sitesnap shot https://example.com/ --device "iPhone 13" --json            # device emulation
-sitesnap shot https://example.com/ --settle 1500 --json                   # wait for entrance animations, no freezing
-sitesnap shot https://example.com/ --full --json                          # classic full-page
-sitesnap shot file:///abs/mock.html --allow-file --full -o public/og.png --json   # write one file to an exact path
-```
-
-- `--vp <WxH>` sets the viewport (default 1440x900); mutually exclusive with `--device`.
-- `--selector` and `--full` are mutually exclusive.
-- By default animations are frozen (same as `page`); `--settle <ms>` disables freezing and waits instead — use it to capture the final state after entrance animations.
-- **To place a shot at a specific path, use `-o, --out-file <path>`** instead of capturing then `cp`. It writes that one file (creating parent dirs), and `file` in the JSON output is that exact path. Mutually exclusive with `--out`.
-- Without `--out` / `--out-file`, `shot` writes to an OS cache dir (`$XDG_CACHE_HOME/sitesnap`, else `~/.cache/sitesnap`), **not** cwd — so running it inside an unrelated repo does not create a stray `sites/`. Pass `--out <dir>` to keep them under a project dir; localhost is split per port (`localhost_3000/`), `file://` under `_file/`.
-- `file://` shot filenames are basename-based, not the full absolute path.
-- Read `file` from the JSON output — it is the absolute path to the PNG.
-
-### Pre-shot interaction / state setup
-
-For UI that only renders a given state after interaction — CSS radio tabs, `<details>` toggles — set the DOM state before the shot instead of making a throwaway copy.
-
-```bash
-sitesnap shot http://localhost:3000/ --allow-private --click ".tab-user" --label user --json   # click then capture
-sitesnap shot http://localhost:3000/ --allow-private --click "summary" --label open --json     # expand a <details>
-sitesnap shot http://localhost:3000/ --allow-private --eval "document.documentElement.classList.add('dark')" --label dark --json
-sitesnap shot file:///abs/path/mock.html --allow-file --click ".tab-user" --label user --json  # local mock, no server
-```
-
-- `--click <css>` is repeatable and runs left to right. Each click waits for its target; a missing target errors with `INTERACTION_FAILED`.
-- `--eval <js>` runs before clicks — an escape hatch for states clicks can't express. Prefer `--click`.
-- `--label <name>` is **required when capturing state variants**: without it, variants of the same url/viewport overwrite the same filename. Vary the label per state.
-- `--allow-file` enables `file://` so you can shoot a static HTML mock with no dev server; those shots go under `_file/`.
-- For transitions, combine with `--settle <ms>` so the animation completes before the shot.
-- Each shot JSON includes `created_at` (ISO) so you can reason about staleness.
-
-### Housekeeping shots (`list --shots` / `clean`)
-
-`shots/` is a scratch area that grows as you vary `--label`. It is never auto-deleted; prune it explicitly. `sites/` is gitignored, so removing shots is safe.
-
-```bash
-sitesnap list --shots --json                       # per-host count / bytes / latest mtime
-sitesnap clean --older-than 7 --dry-run --json      # preview what would be deleted
-sitesnap clean --older-than 7 --json                # actually delete (drop --dry-run)
-sitesnap clean localhost_3000 --json                # wipe one host's shots
-```
-
-- `clean` only touches `shots/`. It never deletes `site`/`page` archives (`desktop/`, `mobile/`, `meta.json`).
-- It is a destructive command with no interactive prompt (so agents can automate it). Always `--dry-run` first.
-
-## Numeric element checks (`inspect`)
-
-Prefer `inspect` over eyeballing screenshots when a check is numeric: computed styles, bounding boxes, text content, overflow amounts.
-
-```bash
-sitesnap inspect http://localhost:3000/ --selector ".cta" --allow-private --json
-sitesnap inspect http://localhost:3000/ --selector "h1" --props "letter-spacing,text-transform" --allow-private --json
-sitesnap inspect https://example.com/ --selector "img" --limit 20 --json   # up to N matches (default 10)
-```
-
-- `--selector` is required. Zero matches is NOT an error: you get `count: 0` and an empty `elements` array (useful for asserting absence).
-- Each element reports `box` (getBoundingClientRect), `style` (a default set of layout/typography properties plus any `--props`), `text` (first 200 chars), and `overflow` (`scrollWidth - clientWidth` / `scrollHeight - clientHeight`, useful for clipped-content checks).
-- `--vp` / `--device` / `--settle` work the same as for `shot`, so you can measure responsive states.
-
-## Page health gate (`check`)
-
-Run `check` before declaring a page done. It reports four pass/fail checks in one navigation:
-
-```bash
-sitesnap check http://localhost:3000/ --allow-private --json            # report only (exit 0)
-sitesnap check http://localhost:3000/ --allow-private --strict --json   # CI gate (exit 1 on failure)
-sitesnap check https://example.com/ --vp 390x844 --json                 # mobile-width overflow check
-```
-
-- `overflow`: `documentElement.scrollWidth - clientWidth` plus up to 10 offending elements (tag + id/class, width, right edge).
-- `console_errors`: console `error` messages and uncaught page errors collected during load.
-- `failed_requests`: network failures and HTTP >= 400 responses.
-- `a11y`: axe-core violations with id, impact, node count, and first selector targets.
-- Top-level `pass` is true only when all four pass. Default exit code is 0 even on failure (report mode); `--strict` exits non-zero.
-
-## Diagnosis and agent handoff
-
-Capture commands write run artifacts under `runs/latest/`. When a run fails, inspect it with:
-
-```bash
-sitesnap doctor sites/example.com/runs/latest --json
-```
-
-For deeper browser investigation, generate files for another agent:
-
-```bash
-sitesnap doctor sites/example.com/runs/latest --agent-task --json
-```
-
-- `diagnosis.md` summarizes the failed run.
-- `agent-task.md` is safe to hand to Codex, Claude Code, Webwright, or another browser-capable agent.
-- `suggested-sitesnap.config.json` is a suggestion artifact only; sitesnap does not auto-load it yet.
-
-## Output (`--json`)
-
-### Success (page)
-```json
-{
-  "success": true,
-  "domain": "example.com",
-  "url": "https://example.com",
-  "desktop": true,
-  "mobile": true,
-  "desktop_path": "/abs/sites/example.com/desktop/index.png",
-  "mobile_path": "/abs/sites/example.com/mobile/index.png",
-  "errors": [],
-  "out_dir": "/abs/sites",
-  "run_dir": "/abs/sites/example.com/runs/latest"
-}
-```
-
-### Success (site)
-```json
-{
-  "success": true,
-  "domain": "example.com",
-  "source": "https://example.com/sitemap.xml",
-  "pages": 10,
-  "captured_pages": 9,
-  "errors": [{"url": "...", "mode": "desktop", "error": "..."}],
-  "out_dir": "/abs/sites",
-  "run_dir": "/abs/sites/example.com/runs/latest"
-}
-```
-
-### Error
-```json
-{
-  "success": false,
-  "error": {
-    "code": "INVALID_URL",
-    "message": "...",
-    "hint": "...",
-    "url": "..."
-  }
-}
-```
-
-## Error codes
-
-| Code | Recovery hint |
+| Error/status | Action |
 |---|---|
-| `INVALID_URL` | Verify URL format (http:// or https://) |
-| `PRIVATE_URL_BLOCKED` | Use `--allow-private` for localhost / private IPs |
-| `SITEMAP_FETCH_FAILED` | Check network or URL |
-| `SITEMAP_NOT_XML` | URL returned HTML; use `sitesnap page` for single pages |
-| `SITEMAP_PARSE_FAILED` | Verify sitemap XML syntax |
-| `SITEMAP_TOO_DEEP` | Adjust `maxDepth` or check recursive sitemaps |
-| `BROWSER_LAUNCH_FAILED` | Run `bunx playwright install chromium` |
-| `DOMAIN_NOT_FOUND` | Run `sitesnap list` to see captured domains |
-| `META_NOT_FOUND` | Re-run capture for the domain |
-| `RUN_DIR_NOT_FOUND` | Pass the `runs/latest` dir printed by site/page/retry |
-| `STORAGE_STATE_NOT_FOUND` | Check the `--storage-state` path; ask the user to run `sitesnap login <url> -o <file>` |
-| `STORAGE_STATE_INVALID` | Storage state file is corrupt; recreate it with `sitesnap login` |
+| `PRIVATE_URL_BLOCKED` | Confirm the internal target is intentional, then add `--allow-private` |
+| `URL_RESOLUTION_FAILED` | Check DNS and URL spelling |
+| `SITEMAP_NOT_XML` | Use `capture <url>` for a normal HTML page |
+| `SITEMAP_FETCH_FAILED` | Check auth, network, redirects, and robots.txt |
+| `BROWSER_LAUNCH_FAILED` | Run `npx playwright install chromium` |
+| `MANIFEST_NOT_FOUND` | Run `list`; collect the domain before retrying |
+| `MANIFEST_INVALID` / `MANIFEST_SCHEMA_UNSUPPORTED` | Preserve the file and ask for archive repair or a new `--out` |
+| `STORAGE_STATE_*` | Ask the user to recreate state with `login` |
 
-## Authenticated sites
+## Out of scope
 
-Identify the auth scheme from a plain `shot`'s JSON (`http_status` / `title`), then pick the flag:
-
-| Symptom | Scheme | Flag |
-|---|---|---|
-| `http_status: 401` with a Basic auth prompt (common on staging) | HTTP Basic | `--http-credentials user:pass` (or `SITESNAP_HTTP_CREDENTIALS` env var) |
-| `401/403` and you hold an API token | Header auth | `--header "Authorization: Bearer TOKEN"` (repeatable) |
-| Redirected to a login page (`title` says Login / Sign in) | Form / SSO login | `sitesnap login` → `--storage-state` |
-
-Form/SSO login must be done by the human once — agents cannot log in themselves:
-
-```bash
-sitesnap login https://app.example.com/login -o auth.json
-# browser opens → user logs in → presses Enter in the terminal → auth.json saved
-sitesnap shot https://app.example.com/dashboard --storage-state auth.json --json
-```
-
-The state file works with every capture command (shot / check / inspect / site / page / retry). Secrets hygiene: the state file **is** the login session — have the user gitignore it, never echo tokens or credentials into reports, and note that run artifacts (options.json) store auth values as `<redacted>`. If captures return 401/403 again, the session expired — ask the user to re-run `sitesnap login`.
-
-## Common tasks
-
-### Capture a site
-```bash
-sitesnap site https://example.com/sitemap.xml --json
-```
-
-### Single page capture
-```bash
-sitesnap page https://example.com/about --json
-```
-
-### Batch with rate limit
-```bash
-sitesnap site https://example.com/sitemap.xml --concurrency 3 --min-interval 250 --json
-```
-
-### Retry failed pages
-```bash
-sitesnap retry example.com --force-visible --wait-ms 1000 --json
-```
-
-### Generate diagnosis files
-```bash
-sitesnap doctor sites/example.com/runs/latest --agent-task --json
-```
-
-### Capture behind login
-```bash
-sitesnap login https://app.example.com/login -o auth.json   # run by the user, once
-sitesnap shot https://app.example.com/dashboard --storage-state auth.json --json
-```
-
-## Best practices for AI agents
-
-- **Always use `--json`** for parseable output
-- **Default output dir**: `site`/`page` archives go to `./sites/<domain>/`; `shot` writes to an OS cache dir (`$XDG_CACHE_HOME/sitesnap`, else `~/.cache/sitesnap`) unless you pass `--out <dir>` / `SITESNAP_OUT` (or `-o <path>` for a single shot). Report absolute paths back to the user.
-- **For sites with lazy-loaded content**: try `--force-visible`
-- **For private/local URLs**: use `--allow-private`
-- **On `BROWSER_LAUNCH_FAILED`**: suggest `bunx playwright install chromium`
-- **On batch failures**: parse the `errors` array in the result; retry individually with `sitesnap page`
-- **For failed runs**: use `sitesnap doctor <run-dir> --json` before guessing a retry strategy
-- **For large sitemaps**: start with `--limit` before running a full capture
-- **For server-friendly captures**: keep concurrency modest and add `--min-interval`
+Do not use sitesnap for local UI checks, selector measurements, accessibility gates, arbitrary DOM interactions, `file://` mocks, or disposable one-off screenshots. Those responsibilities belong to shimon or a browser-capable development agent.

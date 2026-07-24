@@ -23,6 +23,8 @@ test("header parser preserves colons but never echoes an invalid secret", () => 
     expect(error).toBeInstanceOf(SiteSnapError)
     expect((error as Error).message).not.toContain(secret)
   }
+  const invalidValue = "safe\nprivate-value"
+  expect(() => parseHeaderFlag(`X-Test: ${invalidValue}`)).toThrow(SiteSnapError)
 })
 
 test("HTTP credentials preserve colons in password and reject malformed values", () => {

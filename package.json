@@ -1,7 +1,7 @@
 {
   "name": "@hayashiii/sitesnap",
-  "version": "0.7.0",
-  "description": "AI-agent-friendly Playwright CLI to screenshot, check (overflow/console/a11y), and inspect local UI in a dev loop — with pre-shot DOM interaction, sitemap bulk capture, and per-domain archives.",
+  "version": "1.0.0",
+  "description": "AI-agent-first Playwright CLI for collecting websites into reproducible desktop/mobile screenshot archives.",
   "type": "module",
   "bin": {
     "sitesnap": "dist/cli.js"
@@ -30,14 +30,13 @@
     "playwright",
     "ai-agent",
     "claude-code",
-    "visual-testing",
-    "dev-loop",
-    "accessibility",
     "cli",
     "sitemap",
     "responsive",
     "portfolio",
-    "web-archive"
+    "web-archive",
+    "website-collector",
+    "evidence"
   ],
   "author": "Hayashi <hay@shigoto.dev>",
   "license": "MIT",
@@ -53,7 +52,6 @@
     "access": "public"
   },
   "dependencies": {
-    "axe-core": "^4.12.1",
     "fast-xml-parser": "^5.7.2",
     "playwright": "1.61.1"
   },

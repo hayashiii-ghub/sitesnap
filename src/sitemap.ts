@@ -1,7 +1,7 @@
 import { XMLParser } from "fast-xml-parser"
 import { DEFAULTS, USER_AGENT } from "./config.ts"
 import { SiteSnapError } from "./errors.ts"
-import { assertPublicUrlResolved, type HostLookup } from "./url-guard.ts"
+import { assertPublicUrl, assertPublicUrlResolved, type HostLookup } from "./url-guard.ts"
 
 const parser = new XMLParser()
 
@@ -10,6 +10,7 @@ interface FetchXmlOptions {
   headers?: Record<string, string>
   authOrigin?: string
   lookup?: HostLookup
+  fetchTimeoutMs?: number
 }
 
 async function fetchXml(url: string, opts: FetchXmlOptions): Promise<unknown> {
@@ -22,6 +23,7 @@ async function fetchXml(url: string, opts: FetchXmlOptions): Promise<unknown> {
       response = await fetch(current, {
         redirect: "manual",
         headers: { "user-agent": USER_AGENT, ...(scopedHeaders ?? {}) },
+        signal: AbortSignal.timeout(opts.fetchTimeoutMs ?? DEFAULTS.navigationTimeout),
       })
     } catch (error) {
       throw new SiteSnapError("SITEMAP_FETCH_FAILED", `sitemapの取得に失敗しました: ${(error as Error).message}`, "URLとネットワーク接続を確認してください。", { url: current })
@@ -56,6 +58,7 @@ export interface ExpandSitemapOptions {
   headers?: Record<string, string>
   authOrigin?: string
   lookup?: HostLookup
+  fetchTimeoutMs?: number
 }
 
 interface SitemapIndexEntry { loc?: string }
@@ -66,6 +69,7 @@ interface ParsedSitemap {
 }
 
 export async function expandSitemap(sitemapUrl: string, opts: ExpandSitemapOptions = {}): Promise<string[]> {
+  assertPublicUrl(sitemapUrl, opts)
   const visited = opts.visited ?? new Set<string>()
   const depth = opts.depth ?? 0
   const maxDepth = opts.maxDepth ?? DEFAULTS.maxSitemapDepth

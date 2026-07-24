@@ -61,6 +61,22 @@ test("HTTP error captures remain archived but are marked failed", async () => {
   }
 })
 
+test("a missing viewport prevents complete status", async () => {
+  const out = await makeTmpDir()
+  const siteDir = path.join(out, "example.com")
+  await mkdir(siteDir, { recursive: true })
+  try {
+    const manifest = await writeArchiveManifest({
+      domain: "example.com",
+      siteDir,
+      results: [result({ file: path.join(siteDir, "screenshots/desktop/index.png") })],
+    })
+    expect(manifest.status).toBe("partial")
+  } finally {
+    await cleanupTmpDir(out)
+  }
+})
+
 test("unsupported or unsafe manifests fail closed without modification", async () => {
   const out = await makeTmpDir()
   const siteDir = path.join(out, "example.com")
@@ -82,7 +98,10 @@ test("unsupported or unsafe manifests fail closed without modification", async (
         url: "https://example.com/",
         slug: "index",
         title: "",
-        captures: { desktop: { status: "success", path: "../escape.png", captured_at: "now", http_status: 200, duration_ms: 1, error: null } },
+        captures: {
+          desktop: { status: "success", path: "../escape.png", captured_at: "now", http_status: 200, duration_ms: 1, error: null },
+          mobile: { status: "success", path: "screenshots/mobile/index.png", captured_at: "now", http_status: 200, duration_ms: 1, error: null, device: "iPhone 15" },
+        },
       }],
     }
     await writeFile(file, JSON.stringify(traversal))
@@ -100,9 +119,40 @@ test("archive index is deterministic and reflects each manifest", async () => {
       await mkdir(siteDir, { recursive: true })
       await writeArchiveManifest({ domain, siteDir, results: [result({ url: `https://${domain}/`, file: path.join(siteDir, "screenshots/desktop/index.png") })] })
     }
+    const corruptDir = path.join(out, "corrupt.example")
+    await mkdir(corruptDir, { recursive: true })
+    await writeFile(path.join(corruptDir, "manifest.json"), '{"schema_version":99}')
     const index = await buildArchiveIndex(out)
     expect(index.archives.map((archive) => archive.domain)).toEqual(["a.example", "b.example"])
+    expect(index.status).toBe("partial")
+    expect(index.errors).toHaveLength(1)
+    expect(index.errors[0]).toMatchObject({ directory: "corrupt.example", code: "MANIFEST_SCHEMA_UNSUPPORTED" })
     expect(JSON.parse(await readFile(path.join(out, "index.json"), "utf8")).schema_version).toBe(1)
+  } finally {
+    await cleanupTmpDir(out)
+  }
+})
+
+test("a success capture must reference an in-archive screenshot", async () => {
+  const out = await makeTmpDir()
+  const siteDir = path.join(out, "example.com")
+  await mkdir(siteDir, { recursive: true })
+  try {
+    const invalid = {
+      schema_version: 1,
+      domain: "example.com",
+      sources: [],
+      updated_at: "2026-01-01T00:00:00Z",
+      status: "partial",
+      pages: [{
+        url: "https://example.com/",
+        slug: "index",
+        title: "",
+        captures: { desktop: { status: "success", path: null, captured_at: "now", http_status: 200, duration_ms: 1, error: null } },
+      }],
+    }
+    await writeFile(path.join(siteDir, "manifest.json"), JSON.stringify(invalid))
+    await expect(readArchiveManifest(siteDir)).rejects.toMatchObject({ code: "MANIFEST_INVALID" })
   } finally {
     await cleanupTmpDir(out)
   }

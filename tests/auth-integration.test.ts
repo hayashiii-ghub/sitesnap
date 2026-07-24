@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test"
-import { readFile } from "node:fs/promises"
+import { readFile, stat } from "node:fs/promises"
+import type { Browser } from "playwright"
 import path from "node:path"
 import { captureUrls } from "../src/capture.ts"
 import { runLogin } from "../src/login.ts"
@@ -86,8 +87,43 @@ test("login writes reusable Playwright storage state", async () => {
     })
     expect(result.cookies).toBe(1)
     expect(JSON.parse(await readFile(file, "utf8")).cookies[0].name).toBe("session")
+    expect((await stat(file)).mode & 0o777).toBe(0o600)
   } finally {
     server.stop(true)
     await cleanupTmpDir(out)
   }
 }, 60000)
+
+test("login applies the capture network policy before following navigation", async () => {
+  let requestHandler: ((route: unknown) => Promise<void>) | undefined
+  const context = {
+    route: async (_pattern: string, handler: (route: unknown) => Promise<void>) => { requestHandler = handler },
+    routeWebSocket: async () => {},
+    newPage: async () => ({
+      goto: async () => {
+        let aborted = false
+        await requestHandler?.({
+          request: () => ({ url: () => "http://127.0.0.1/private" }),
+          abort: async () => { aborted = true },
+          continue: async () => {},
+        })
+        if (aborted) throw new Error("navigation aborted")
+        return null
+      },
+    }),
+    once: () => {},
+    storageState: async () => ({ cookies: [], origins: [] }),
+    close: async () => {},
+  }
+  const browser = {
+    newContext: async () => context,
+    close: async () => {},
+  } as unknown as Browser
+
+  await expect(runLogin("https://public.example/login", {
+    browser,
+    lookup: async () => [{ address: "93.184.216.34", family: 4 }],
+    waitForDone: async () => {},
+    onLog: () => {},
+  })).rejects.toMatchObject({ code: "PRIVATE_URL_BLOCKED" })
+})

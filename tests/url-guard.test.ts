@@ -11,7 +11,7 @@ test("private/special IPv4 ranges are blocked", () => {
 })
 
 test("private/special IPv6 and mapped addresses are blocked", () => {
-  for (const address of ["::", "::1", "fe80::1", "fc00::1", "fd12::1", "ff02::1", "2001:db8::1", "::ffff:7f00:1"]) {
+  for (const address of ["::", "::1", "fe80::1", "fec0::1", "fc00::1", "fd12::1", "ff02::1", "2001:db8::1", "::ffff:7f00:1", "::ffff:127.0.0.1"]) {
     expect(isPrivateHost(address)).toBeTrue()
   }
   expect(isPrivateHost("::ffff:0808:0808")).toBeFalse()
