@@ -40,6 +40,43 @@ test("custom auth header reaches only the capture origin, not cross-origin subre
   }
 }, 60000)
 
+test("custom auth header is not forwarded by a cross-origin redirect", async () => {
+  const seen: Array<string | null> = []
+  const destination = Bun.serve({
+    port: 0,
+    fetch(request) {
+      seen.push(request.headers.get("authorization"))
+      return new Response("<html><head><title>redirected</title></head><body>ok</body></html>", {
+        headers: { "content-type": "text/html" },
+      })
+    },
+  })
+  const source = Bun.serve({
+    port: 0,
+    fetch() {
+      return new Response(null, {
+        status: 302,
+        headers: { location: `http://127.0.0.1:${destination.port}/landing` },
+      })
+    },
+  })
+  const out = await makeTmpDir()
+  try {
+    const capture = await captureUrls([`http://127.0.0.1:${source.port}/`], {
+      outDir: out,
+      allowPrivate: true,
+      headers: { Authorization: "Bearer redirect-secret" },
+      preScroll: "none",
+    })
+    expect(capture.results.every((result) => result.httpStatus === 200 && !result.error)).toBeTrue()
+    expect(seen).toEqual([null, null])
+  } finally {
+    source.stop(true)
+    destination.stop(true)
+    await cleanupTmpDir(out)
+  }
+}, 60000)
+
 test("HTTP Basic credentials are scoped and accepted by the target", async () => {
   const expected = `Basic ${Buffer.from("user:pass").toString("base64")}`
   const server = Bun.serve({

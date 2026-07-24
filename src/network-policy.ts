@@ -47,7 +47,17 @@ export async function installNetworkPolicy(
     const headers = Object.fromEntries(
       Object.entries(route.request().headers()).filter(([name]) => !customNames.has(name.toLowerCase()))
     )
-    if (new URL(requestUrl).origin === authOrigin) Object.assign(headers, customHeaders)
+    if (new URL(requestUrl).origin === authOrigin) {
+      Object.assign(headers, customHeaders)
+      try {
+        const response = await route.fetch({ headers, maxRedirects: 0 })
+        await route.fulfill({ response })
+      } catch (error) {
+        policyError ??= error as Error
+        await route.abort("failed")
+      }
+      return
+    }
     await route.continue({ headers })
   })
 
