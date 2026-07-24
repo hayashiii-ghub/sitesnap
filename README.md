@@ -5,92 +5,31 @@
 [![npm version](https://img.shields.io/npm/v/@hayashiii/sitesnap.svg)](https://www.npmjs.com/package/@hayashiii/sitesnap)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-AIエージェントがWebサイトを収集し、再取得可能なdesktop/mobile証拠archiveとして残すためのPlaywright CLIです。
+sitesnapは、Webサイトをデスクトップとモバイルのスクリーンショットとして収集し、あとから再取得できるアーカイブにまとめるPlaywright CLIです。
+
+URLを渡すと、PNGだけでなく、収集結果を記録した`manifest.json`と直近の実行記録も保存します。
+公開サイトの記録、参考サイトの収集、ポートフォリオ素材の保存に使います。
 
 ```text
-URL / sitemap / URL list
+URL / sitemap / URL一覧
           ↓
        sitesnap
           ↓
-manifest.json + desktop/mobile PNG + runs/latest.json
+デスクトップPNG、モバイルPNG + manifest.json + runs/latest.json
 ```
 
-## 役割
+## まず使う
 
-sitesnap 1.xは「サイトを集めて残す」ことだけを担当します。
-
-| ツール | 担当 |
-|---|---|
-| `sitesnap` | 公開サイト、参考サイト、ポートフォリオ素材の収集・archive・失敗再取得 |
-| [`shimon`](https://github.com/hayashiii-ghub/shimon) | 開発中UIのcase定義、responsive検証、health check、evidence取得 |
-
-0.xにあった `shot` / `check` / `inspect` / `doctor` / `clean` / `open` は1.0で削除しました。開発中のUI品質検証はshimonを使ってください。
-
-## インストール
+Node.js 22以上が必要です。
 
 ```bash
 npm install -g @hayashiii/sitesnap
 npx playwright install chromium
-```
 
-Node.js 22以上が必要です。
-
-## Quick start
-
-```bash
-# 1ページ
 sitesnap capture https://example.com/about
-
-# sitemap / sitemap index
-sitesnap capture --sitemap https://example.com/sitemap.xml
-
-# 改行区切りURL（複数host可）
-sitesnap capture --input urls.txt
-printf '%s\n' https://a.example/ https://b.example/ | sitesnap capture --input -
-
-# 失敗したdesktop/mobile captureだけ再取得
-sitesnap retry example.com
-
-# archive一覧
-sitesnap list
 ```
 
-実行コマンドは常にJSONをstdoutへ出し、進捗だけをstderrへ出します。`--json` は互換用のno-opとして受け付けます。
-
-## Commands
-
-| コマンド | 用途 |
-|---|---|
-| `sitesnap capture <url>` | 単一ページをdesktop/mobileで収集 |
-| `sitesnap capture --sitemap <url>` | sitemapを再帰展開して収集 |
-| `sitesnap capture --input <file\|->` | 改行区切りURLを収集。空行と`#`コメントは無視 |
-| `sitesnap retry <domain>` | manifestで失敗しているcaptureだけ再実行 |
-| `sitesnap list` | archive indexをJSONで取得 |
-| `sitesnap login <url>` | 人間がログインし、Playwright storage stateを保存 |
-
-`capture`の入力はURL、`--sitemap`、`--input`のいずれか1つです。
-
-## Capture options
-
-| フラグ | 既定 | 説明 |
-|---|---:|---|
-| `--out <dir>` | `./sites` | archive root。`SITESNAP_OUT`でも指定可能 |
-| `--limit <N>` | なし | filter後の先頭N URLだけ収集（captureのみ） |
-| `--exclude <regex>` | なし | 一致するURLを除外（captureのみ） |
-| `--concurrency <N>` | `3` | desktop/mobile captureの同時実行数 |
-| `--min-interval <ms>` | `0` | 同一hostへの最小アクセス間隔 |
-| `--wait-ms <ms>` | `0` | screenshot前の追加待機 |
-| `--pre-scroll <full-page\|none>` | `full-page` | lazy-load用の事前scroll |
-| `--force-visible` | off | scroll reveal要素を強制表示 |
-| `--allow-private` | off | localhost/private networkを明示的に許可 |
-
-各URLは固定の2条件で取得します。
-
-- desktop: `1440 × 900`
-- mobile: Playwright `iPhone 15`
-- screenshot: full page
-
-## Archive format
+取得結果は既定で`./sites`へ保存されます。
 
 ```text
 sites/
@@ -99,92 +38,170 @@ sites/
     ├── manifest.json
     ├── screenshots/
     │   ├── desktop/
-    │   │   └── about--<hash>.png
     │   └── mobile/
-    │       └── about--<hash>.png
-    └── runs/
-        └── latest.json
+    └── runs/latest.json
 ```
 
-`manifest.json`はarchiveの累積状態です。再実行しても既存ページを保持し、入力元を`sources`履歴として残します。`runs/latest.json`は直近1回の実行状態です。`index.json`は正常archiveの`archives[]`と、読めないarchiveの`errors[]`を分けて保持します。
+コマンドの結果はJSONとしてstdoutへ、進捗はstderrへ出力されます。
+AIエージェントはstdoutの`success`、`status`、`archives[]`を読めます。
+
+## sitesnapとshimonの違い
+
+sitesnapは「サイトを集めて残す」ためのツールです。
+開発中のUIを検証するツールではありません。
+
+| やりたいこと | 使うツール |
+|---|---|
+| 公開サイトや参考サイトをまとめて保存する | `sitesnap` |
+| sitemapを定期的に収集する | `sitesnap` |
+| 失敗したページだけ再取得する | `sitesnap` |
+| 開発中UIのレスポンシブや状態を検証する | [`shimon`](https://github.com/hayashiii-ghub/shimon) |
+| overflow、console error、a11yを確認する | [`shimon`](https://github.com/hayashiii-ghub/shimon) |
+
+sitesnap 0.xにあった`shot`、`check`、`inspect`、`doctor`、`clean`、`open`は1.0で削除しました。
+
+## 収集方法
+
+### 1ページ
+
+```bash
+sitesnap capture https://example.com/about
+```
+
+### sitemap
+
+```bash
+sitesnap capture --sitemap https://example.com/sitemap.xml
+```
+
+sitemap indexと子sitemapも再帰的に展開します。
+大きなsitemapは、最初に`--limit`で少数ページを試してください。
+
+```bash
+sitesnap capture --sitemap https://example.com/sitemap.xml --limit 20
+```
+
+### URL一覧
+
+`--input`は、空行と`#`から始まるコメントを無視します。
+複数ホストを含められます。
+
+```bash
+sitesnap capture --input urls.txt
+printf '%s\n' https://a.example/ https://b.example/ | sitesnap capture --input -
+```
+
+## コマンド
+
+| コマンド | 用途 |
+|---|---|
+| `sitesnap capture <url>` | 1ページをデスクトップとモバイルで収集 |
+| `sitesnap capture --sitemap <url>` | sitemap内のページを収集 |
+| `sitesnap capture --input <file\|->` | 改行区切りのURLを収集 |
+| `sitesnap retry <domain>` | 失敗している取得だけ再実行 |
+| `sitesnap list` | アーカイブ一覧をJSONで取得 |
+| `sitesnap login <url>` | ブラウザでログインしてstorage stateを保存 |
+
+`capture`では、URL、`--sitemap`、`--input`のいずれか1つを指定します。
+
+## 取得条件とオプション
+
+各URLは固定の2条件でフルページ撮影します。
+
+- デスクトップ：`1440 × 900`
+- モバイル：Playwright `iPhone 15`
+
+| フラグ | 既定値 | 説明 |
+|---|---:|---|
+| `--out <dir>` | `./sites` | アーカイブの保存先。`SITESNAP_OUT`でも指定可能 |
+| `--limit <N>` | なし | 絞り込み後の先頭N URLだけ収集 |
+| `--exclude <regex>` | なし | 正規表現に一致するURLを除外 |
+| `--concurrency <N>` | `3` | 同時取得数 |
+| `--min-interval <ms>` | `0` | 同一ホストへの最小アクセス間隔 |
+| `--wait-ms <ms>` | `0` | 撮影前の追加待機時間 |
+| `--pre-scroll <full-page\|none>` | `full-page` | lazy-load用の事前スクロール |
+| `--force-visible` | off | scroll reveal要素を強制表示 |
+| `--allow-private` | off | localhostとprivate networkを許可 |
+
+`--limit`と`--exclude`は`capture`だけで使用できます。
+
+## 結果の読み方
+
+実行結果の`status`は3種類です。
+
+| status | 意味 | exit code |
+|---|---|---:|
+| `complete` | すべて成功 | `0` |
+| `partial` | 成功と失敗が混在 | `1` |
+| `failed` | すべて失敗、または安全に保存できない | `1` |
+
+エージェントが最初に読むフィールドは次のとおりです。
 
 ```json
 {
+  "success": true,
   "schema_version": 1,
-  "domain": "example.com",
-  "sources": [{ "kind": "sitemap", "value": "https://example.com/sitemap.xml" }],
+  "command": "capture",
   "status": "complete",
-  "pages": [
+  "archives": [
     {
-      "url": "https://example.com/about",
-      "slug": "about--0123456789abcdef",
-      "title": "About",
-      "captures": {
-        "desktop": {
-          "status": "success",
-          "path": "screenshots/desktop/about--0123456789abcdef.png",
-          "captured_at": "2026-07-24T00:00:00.000Z",
-          "http_status": 200,
-          "duration_ms": 912,
-          "error": null
-        },
-        "mobile": {
-          "status": "success",
-          "path": "screenshots/mobile/about--0123456789abcdef.png",
-          "captured_at": "2026-07-24T00:00:01.000Z",
-          "http_status": 200,
-          "duration_ms": 1042,
-          "error": null,
-          "device": "iPhone 15"
-        }
-      }
+      "domain": "example.com",
+      "manifest": "/absolute/path/sites/example.com/manifest.json",
+      "run_artifact": "/absolute/path/sites/example.com/runs/latest.json"
     }
   ]
 }
 ```
 
-### Statusとexit code
+`manifest.json`はアーカイブの累積状態です。
+再実行しても既存ページを保持し、入力元を`sources`へ記録します。
+`runs/latest.json`は直近1回の実行結果、`index.json`は全アーカイブの一覧です。
 
-- `complete`: 全capture成功、exit 0
-- `partial`: 成功と失敗が混在、exit 1
-- `failed`: 全失敗またはarchive metadataを安全に更新できない、exit 1
+HTTP 400以上も失敗として扱います。
+複数ホストを入力した場合は、ホストごとに検証、取得、保存を分離するため、1ホストの失敗で後続ホストを捨てません。
+壊れたmanifestや未知のschemaは上書きしません。
 
-HTTP 400以上も失敗です。複数host入力ではhostごとにDNS検証・収集・保存を独立して行い、1hostの失敗で後続hostを捨てません。壊れたmanifestや未知のschemaは上書きせず、indexの`errors[]`へ隔離します。`list`は正常archiveも返しますが、indexにerrorがあれば非ゼロ終了です。
-
-## Authentication
+## 失敗したページを再取得する
 
 ```bash
-# フォーム / SSO: 人間がブラウザでログインしてEnter
+sitesnap retry example.com
+```
+
+`retry`は`manifest.json`で失敗しているデスクトップまたはモバイル取得だけを再実行します。
+`run_artifact`が`null`の場合や、`MANIFEST_INVALID`、`MANIFEST_SCHEMA_UNSUPPORTED`の場合は再取得せず、manifestを修復するか別の`--out`を指定してください。
+
+## ログインが必要なサイト
+
+フォーム、SSO、2要素認証がある場合は、人間がブラウザでログインしてstorage stateを保存します。
+
+```bash
 sitesnap login https://app.example.com/login -o auth.json
 sitesnap capture https://app.example.com/dashboard --storage-state auth.json
+```
 
-# Header / Basic
+Header認証とHTTP Basic認証も使用できます。
+
+```bash
 sitesnap capture https://staging.example.com/ --header "Authorization: Bearer TOKEN"
 SITESNAP_HTTP_CREDENTIALS='user:pass' sitesnap capture --sitemap https://staging.example.com/sitemap.xml
 ```
 
-追加headerとHTTP Basic認証はcapture対象originだけに送られ、cross-originの子sitemap・redirect・subresourceへ転送されません。認証付きsitemapが別originのページを列挙した場合は撮影前に拒否します。複数originへ認証付きで収集する場合はoriginごとに実行を分けてください。
+追加headerとHTTP Basic認証は対象originだけに送信します。
+cross-originの子sitemap、redirect、subresourceへは転送しません。
+認証付きで複数originを収集する場合は、originごとに実行を分けてください。
 
-storage stateはログインセッションそのものです。`login`は保存ファイルを`0600`にしますが、必ず`.gitignore`へ追加し、共有しないでください。run artifactではheader値とBasic認証を`<redacted>`にします。
+storage stateはログインセッションそのものです。
+保存ファイルを`.gitignore`へ追加し、共有しないでください。
 
-## Security
+## セキュリティ
 
-- `http:` / `https:`のみ許可
-- DNS解決後を含め、loopback・private・link-local・特殊用途IPを既定で拒否
-- sitemap redirect、子sitemap、browser subresource、WebSocketも同じpolicyで検証
-- `--allow-private`は意図した内部targetにだけ使用
-- archive pathとmanifest artifact pathのroot逸脱を拒否
-- 未知・破損manifestはfail closedで保全
+- `http:`と`https:`だけを許可
+- DNS解決後を含め、loopback、private、link-local、特殊用途IPを既定で拒否
+- sitemapのredirect、子sitemap、ブラウザのsubresource、WebSocketにも同じポリシーを適用
+- アーカイブとmanifestのパスが保存先の外へ出ることを拒否
+- 未知または破損したmanifestを上書きせずに保全
 
-## Agent contract
-
-エージェントは次の順で扱います。
-
-1. `capture`を実行する。
-2. stdout JSONの`success`、`status`、`archives[]`を読む。
-3. 各archiveの`manifest`と`run_artifact`を成果物として報告する。
-4. `run_artifact`があるcapture失敗だけ、内容を読んで`retry <domain>`する。`run_artifact: null`や`MANIFEST_INVALID` / `MANIFEST_SCHEMA_UNSUPPORTED`はretryせず、manifest修復または別`--out`へ分岐する。
-5. 大規模sitemapは最初に`--limit`、本番収集は控えめな`--concurrency`と`--min-interval`を使う。
+`--allow-private`は、意図した内部サイトにだけ使用してください。
 
 ## 0.xからの移行
 
@@ -195,9 +212,10 @@ retry <domain>  → retry <domain>
 list            → list
 ```
 
-`meta.json`ではなくschema v1の`manifest.json`を読みます。旧archiveと同じ`--out`へ直接書かず、別directoryで1.0のarchiveを作り直してください。
+1.xは`meta.json`の代わりにschema v1の`manifest.json`を使用します。
+0.xのアーカイブへ上書きせず、別の`--out`へ収集し直してください。
 
-## Development
+## 開発
 
 ```bash
 bun install
@@ -207,4 +225,4 @@ bun run build
 bun run pack:smoke
 ```
 
-Releaseは`v1.0.0`のようにpackage versionと一致するtagをpushすると、CIと同じgateの後にnpmへpublishされます。
+package versionと一致する`v1.0.0`形式のtagをpushすると、検証後にnpmへ公開します。
