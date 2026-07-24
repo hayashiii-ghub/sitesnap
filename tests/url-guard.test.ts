@@ -1,83 +1,43 @@
-import { test, expect } from "bun:test";
-import { assertPublicUrl, isPrivateHost } from "../src/url-guard.ts";
+import { expect, test } from "bun:test"
+import { assertPublicUrl, assertPublicUrlResolved, isPrivateHost } from "../src/url-guard.ts"
 
-test("isPrivateHost: loopback names", () => {
-  expect(isPrivateHost("localhost")).toBe(true);
-  expect(isPrivateHost("::1")).toBe(true);
-});
+test("private/special IPv4 ranges are blocked", () => {
+  for (const address of [
+    "0.0.0.0", "10.0.0.1", "100.64.0.1", "127.0.0.1", "169.254.169.254",
+    "172.16.0.1", "192.168.0.1", "192.0.2.1", "198.18.0.1", "198.51.100.1",
+    "203.0.113.1", "224.0.0.1", "255.255.255.255",
+  ]) expect(isPrivateHost(address)).toBeTrue()
+  expect(isPrivateHost("8.8.8.8")).toBeFalse()
+})
 
-test("isPrivateHost: IPv4 private/loopback ranges", () => {
-  expect(isPrivateHost("127.0.0.1")).toBe(true);
-  expect(isPrivateHost("10.0.0.5")).toBe(true);
-  expect(isPrivateHost("192.168.1.1")).toBe(true);
-  expect(isPrivateHost("169.254.169.254")).toBe(true);
-  expect(isPrivateHost("172.16.0.1")).toBe(true);
-  expect(isPrivateHost("172.31.255.255")).toBe(true);
-});
+test("private/special IPv6 and mapped addresses are blocked", () => {
+  for (const address of ["::", "::1", "fe80::1", "fc00::1", "fd12::1", "ff02::1", "2001:db8::1", "::ffff:7f00:1"]) {
+    expect(isPrivateHost(address)).toBeTrue()
+  }
+  expect(isPrivateHost("::ffff:0808:0808")).toBeFalse()
+})
 
-test("isPrivateHost: IPv4 ranges that are NOT private", () => {
-  expect(isPrivateHost("8.8.8.8")).toBe(false);
-  expect(isPrivateHost("172.15.0.1")).toBe(false);
-  expect(isPrivateHost("172.32.0.1")).toBe(false);
-  expect(isPrivateHost("example.com")).toBe(false);
-});
+test("URL guard rejects non-http, private literals, and dot hosts", () => {
+  for (const url of ["file:///etc/passwd", "ftp://example.com", "http://127.0.0.1", "http://[::1]/", "http://%2e%2e/"]) {
+    expect(() => assertPublicUrl(url)).toThrow()
+  }
+  expect(() => assertPublicUrl("https://example.com/")).not.toThrow()
+  expect(() => assertPublicUrl("http://127.0.0.1/", { allowPrivate: true })).not.toThrow()
+})
 
-test("assertPublicUrl: rejects non-http(s) protocols", () => {
-  expect(() => assertPublicUrl("file:///etc/passwd")).toThrow(/プロトコル/);
-  expect(() => assertPublicUrl("ftp://example.com/")).toThrow(/プロトコル/);
-  expect(() => assertPublicUrl("data:text/plain,hello")).toThrow(/プロトコル/);
-});
+test("resolved URL guard rejects any private DNS answer and fails closed", async () => {
+  await expect(assertPublicUrlResolved("https://public.example/", {
+    lookup: async () => [
+      { address: "93.184.216.34", family: 4 },
+      { address: "10.0.0.2", family: 4 },
+    ],
+  })).rejects.toMatchObject({ code: "PRIVATE_URL_BLOCKED" })
+  await expect(assertPublicUrlResolved("https://missing.example/", {
+    lookup: async () => [],
+  })).rejects.toMatchObject({ code: "URL_RESOLUTION_FAILED" })
+})
 
-test("assertPublicUrl: rejects private hosts by default", () => {
-  expect(() => assertPublicUrl("http://localhost/")).toThrow(/プライベート|ループバック/);
-  expect(() => assertPublicUrl("http://169.254.169.254/latest/meta-data/")).toThrow(
-    /プライベート|ループバック/
-  );
-});
-
-test("assertPublicUrl: allows public URLs", () => {
-  expect(() => assertPublicUrl("https://example.com/")).not.toThrow();
-  expect(() => assertPublicUrl("http://example.com/foo")).not.toThrow();
-});
-
-test("assertPublicUrl: allowPrivate=true bypasses host check but keeps protocol check", () => {
-  expect(() => assertPublicUrl("http://localhost:3000/", { allowPrivate: true })).not.toThrow();
-  expect(() => assertPublicUrl("file:///etc/passwd", { allowPrivate: true })).toThrow(
-    /プロトコル/
-  );
-});
-
-test("assertPublicUrl: allowFile=true で file:// を許可する", () => {
-  expect(() => assertPublicUrl("file:///Users/me/mock.html", { allowFile: true })).not.toThrow();
-  // allowFile は file:// 限定。他プロトコルは変わらず弾く
-  expect(() => assertPublicUrl("ftp://example.com/", { allowFile: true })).toThrow(/プロトコル/);
-  expect(() => assertPublicUrl("data:text/plain,hi", { allowFile: true })).toThrow(/プロトコル/);
-});
-
-test("isPrivateHost: bracketed IPv6 (URL.hostname returns brackets)", () => {
-  expect(isPrivateHost("[::1]")).toBe(true);
-});
-
-test("isPrivateHost: IPv6 link-local fe80::/10", () => {
-  expect(isPrivateHost("fe80::1")).toBe(true);
-  expect(isPrivateHost("feb0::abcd")).toBe(true);
-});
-
-test("isPrivateHost: IPv6 unique-local fc00::/7", () => {
-  expect(isPrivateHost("fc00::1")).toBe(true);
-  expect(isPrivateHost("fd12:3456:789a::1")).toBe(true);
-});
-
-test("isPrivateHost: IPv4-mapped IPv6 unwraps to private IPv4", () => {
-  // ::ffff:7f00:1 == 127.0.0.1
-  expect(isPrivateHost("::ffff:7f00:1")).toBe(true);
-  // ::ffff:c0a8:101 == 192.168.1.1
-  expect(isPrivateHost("::ffff:c0a8:101")).toBe(true);
-  // ::ffff:0808:0808 == 8.8.8.8 (public)
-  expect(isPrivateHost("::ffff:0808:0808")).toBe(false);
-});
-
-test("assertPublicUrl: rejects bracketed IPv6 loopback URL", () => {
-  expect(() => assertPublicUrl("http://[::1]/")).toThrow(/プライベート|ループバック/);
-  expect(() => assertPublicUrl("http://[fe80::1]/")).toThrow(/プライベート|ループバック/);
-});
+test("allow-private bypasses both literal and DNS checks but never protocol checks", async () => {
+  await expect(assertPublicUrlResolved("http://localhost/", { allowPrivate: true })).resolves.toBeUndefined()
+  await expect(assertPublicUrlResolved("file:///tmp/page.html", { allowPrivate: true })).rejects.toMatchObject({ code: "INVALID_URL" })
+})

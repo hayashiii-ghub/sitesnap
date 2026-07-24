@@ -4,7 +4,7 @@ import path from "node:path"
 import { createInterface } from "node:readline"
 import { DEFAULTS } from "./config.ts"
 import { SiteSnapError } from "./errors.ts"
-import { assertPublicUrl } from "./url-guard.ts"
+import { assertPublicUrlResolved } from "./url-guard.ts"
 
 export interface LoginOptions {
   // 保存先。未指定は ./sitesnap-state.json
@@ -51,7 +51,7 @@ async function launchHeadedChromium(): Promise<Browser> {
 // ブラウザを開いて人間にログインしてもらい、storage state (cookies + localStorage)
 // を JSON に保存する。保存した状態は --storage-state <file> で全撮影コマンドから使える
 export async function runLogin(url: string, opts: LoginOptions = {}): Promise<LoginResult> {
-  assertPublicUrl(url, { allowPrivate: opts.allowPrivate || false })
+  await assertPublicUrlResolved(url, { allowPrivate: opts.allowPrivate || false })
   const log = opts.onLog ?? ((message: string) => console.error(message))
   const file = path.resolve(opts.outFile || "./sitesnap-state.json")
 

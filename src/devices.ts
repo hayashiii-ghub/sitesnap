@@ -16,7 +16,7 @@ export function deviceDescriptorFor(name: string) {
     throw new SiteSnapError(
       "UNKNOWN_DEVICE",
       `不明なデバイス名です: ${name}`,
-      `Playwright のデバイス名を指定してください (例: "iPhone 17", "iPad Pro 11", "Pixel 10")。`,
+      `Playwright のデバイス名を指定してください (例: "iPhone 15", "iPad Pro 11", "Pixel 7")。`,
       {}
     )
   }

@@ -3,56 +3,26 @@ import { HELP, parseCliArgs } from "./cli-args.ts"
 import { buildCommands } from "./commands.ts"
 import { formatError } from "./output.ts"
 
-const rawArgv = process.argv.slice(2)
-const wantsJson = rawArgv.includes("--json")
+const argv = process.argv.slice(2)
 
-if (rawArgv.includes("--version") || rawArgv.includes("-v")) {
+if (argv.includes("--version") || argv.includes("-v")) {
   console.log(VERSION)
   process.exit(0)
 }
-
-// -h / --help はサブコマンドの後ろ (例: sitesnap shot --help) でも受ける。
-// parseCliArgs より前に処理しないと未知オプション扱いで弾かれてしまう。
-if (rawArgv.includes("-h") || rawArgv.includes("--help")) {
+if (argv.includes("--help") || argv.includes("-h") || argv[0] === "help" || argv.length === 0) {
   console.log(HELP)
   process.exit(0)
 }
 
-let ctx
 try {
-  ctx = parseCliArgs(rawArgv)
-} catch (e) {
-  if (wantsJson) {
-    console.log(formatError(e, "json"))
-  } else {
-    console.error(formatError(e, "text"))
-  }
-  process.exit(1)
-}
-
-if (!ctx.sub || ctx.sub === "help") {
-  console.log(HELP)
-  process.exit(0)
-}
-
-const fn = buildCommands()[ctx.sub]
-if (!fn) {
-  console.error(`不明なコマンド: ${ctx.sub}`)
-  console.error(HELP)
-  process.exit(1)
-}
-
-try {
-  const result = await fn(ctx)
+  const context = parseCliArgs(argv)
+  const handler = context.sub ? buildCommands()[context.sub] : undefined
+  if (!handler) throw new Error(`不明なコマンドです: ${context.sub ?? ""}`)
+  const result = await handler(context)
   if (result.stdout) process.stdout.write(`${result.stdout}\n`)
   if (result.stderr) process.stderr.write(`${result.stderr}\n`)
   process.exit(result.exitCode)
-} catch (e) {
-  // SiteSnapError 含む全エラーを構造化出力
-  if (ctx.json) {
-    console.log(formatError(e, "json"))
-  } else {
-    console.error(formatError(e, "text"))
-  }
+} catch (error) {
+  process.stdout.write(`${formatError(error)}\n`)
   process.exit(1)
 }

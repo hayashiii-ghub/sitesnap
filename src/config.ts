@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
-import os from "node:os"
 import path from "node:path"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -12,7 +11,7 @@ export const USER_AGENT: string = `sitesnap/${VERSION} (+${pkg.homepage})`
 export const DEFAULTS = {
   viewports: {
     desktop: { width: 1440, height: 900, deviceScaleFactor: 1, isMobile: false, hasTouch: false },
-    mobile: "iPhone 17",
+    mobile: "iPhone 15",
   },
   locale: "ja-JP",
   timezone: "Asia/Tokyo",
@@ -28,22 +27,3 @@ export const DEFAULTS = {
   maxSitemapDepth: 5,
   minIntervalMs: 0,
 } as const
-
-/** site/page の --mobile-profile broad で撮る端末一覧 (先頭がデフォルト = mobile/<slug>.png) */
-export const MOBILE_PROFILE_BROAD = ["iPhone 17", "iPhone SE (3rd gen)", "Pixel 10"] as const
-
-/** broad プロファイルの追加端末 → mobile/ 配下サブディレクトリ */
-export const MOBILE_VARIANT_SUBDIRS: Record<string, string> = {
-  "iPhone SE (3rd gen)": "iphone-se-3rd-gen",
-  "Pixel 10": "pixel-10",
-}
-
-export type MobileProfile = "broad"
-
-// shot は「使い捨て」用途なので、--out を明示しない限り cwd ではなく
-// OS のキャッシュ領域に出す (無関係な git repo を汚さないため)。
-// site/page のアーカイブは従来どおり ./sites/。
-export function shotCacheDir(env: NodeJS.ProcessEnv = process.env): string {
-  const base = env.XDG_CACHE_HOME || path.join(os.homedir(), ".cache")
-  return path.join(base, "sitesnap")
-}

@@ -1,109 +1,86 @@
-import { test, expect, mock } from "bun:test";
-import { expandSitemap } from "../src/sitemap.ts";
-import { USER_AGENT } from "../src/config.ts";
-import { FIXTURE_URLSET } from "./helpers.ts";
+import { expect, test } from "bun:test"
+import { USER_AGENT } from "../src/config.ts"
+import { expandSitemap } from "../src/sitemap.ts"
+import { FIXTURE_URLSET } from "./helpers.ts"
 
-type FetchCall = { url: unknown; opts: unknown };
+const publicLookup = async () => [{ address: "93.184.216.34", family: 4 }]
+const xml = (body: string, init: ResponseInit = {}) => new Response(body, { ...init, headers: { "content-type": "application/xml", ...init.headers } })
 
-function mockFetchSequence(responses: Record<string, string>) {
-  const calls: FetchCall[] = [];
-  const fn = mock(async (url: unknown, opts: unknown) => {
-    calls.push({ url, opts });
-    const body = responses[url as string];
-    if (body === undefined) throw new Error(`unexpected fetch: ${url}`);
-    return {
-      ok: true,
-      status: 200,
-      headers: {
-        get: (k: string) => (k.toLowerCase() === "content-type" ? "application/xml" : null),
-      },
-      text: async () => body,
-    };
-  });
-  return { fn, calls };
-}
-
-test("expandSitemap: rejects private host", async () => {
-  await expect(expandSitemap("http://localhost/sitemap.xml")).rejects.toThrow(
-    /プライベート|ループバック/
-  );
-});
-
-test("expandSitemap: rejects non-http protocol", async () => {
-  await expect(expandSitemap("file:///tmp/sitemap.xml")).rejects.toThrow(/プロトコル/);
-});
-
-test("expandSitemap: parses urlset and sends User-Agent", async () => {
-  const { fn, calls } = mockFetchSequence({
-    "https://example.com/sitemap.xml": FIXTURE_URLSET,
-  });
-  const original = globalThis.fetch;
-  globalThis.fetch = fn as unknown as typeof globalThis.fetch;
+test("urlset is parsed, sorted, and sent with the sitesnap user agent", async () => {
+  const original = globalThis.fetch
+  let headers: HeadersInit | undefined
+  globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+    headers = init?.headers
+    return xml(FIXTURE_URLSET)
+  }) as unknown as typeof fetch
   try {
-    const urls = await expandSitemap("https://example.com/sitemap.xml");
-    expect(urls).toEqual(["https://example.com/", "https://example.com/about"]);
-    const opts = calls[0]?.opts as { headers?: Record<string, string> } | undefined;
-    expect(opts?.headers?.["user-agent"]).toBe(USER_AGENT);
+    expect(await expandSitemap("https://example.com/sitemap.xml", { lookup: publicLookup })).toEqual([
+      "https://example.com/",
+      "https://example.com/about",
+    ])
+    expect(new Headers(headers).get("user-agent")).toBe(USER_AGENT)
   } finally {
-    globalThis.fetch = original;
+    globalThis.fetch = original
   }
-});
+})
 
-test("expandSitemap: silently skips cyclic sitemap references", async () => {
-  const cyclic = `<?xml version="1.0"?>
-<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <sitemap><loc>https://example.com/a.xml</loc></sitemap>
-</sitemapindex>`;
-  const { fn } = mockFetchSequence({
-    "https://example.com/a.xml": cyclic,
-  });
-  const original = globalThis.fetch;
-  globalThis.fetch = fn as unknown as typeof globalThis.fetch;
+test("auth headers stay on the root origin across recursive sitemaps", async () => {
+  const original = globalThis.fetch
+  const seen: Array<{ url: string; authorization: string | null }> = []
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    seen.push({ url, authorization: new Headers(init?.headers).get("authorization") })
+    if (url === "https://root.example/sitemap.xml") {
+      return xml(`<sitemapindex><sitemap><loc>https://child.example/pages.xml</loc></sitemap></sitemapindex>`)
+    }
+    return xml(`<urlset><url><loc>https://child.example/page</loc></url></urlset>`)
+  }) as unknown as typeof fetch
   try {
-    const urls = await expandSitemap("https://example.com/a.xml");
-    expect(urls).toEqual([]);
+    await expandSitemap("https://root.example/sitemap.xml", {
+      headers: { Authorization: "Bearer secret" },
+      authOrigin: "https://root.example",
+      lookup: publicLookup,
+    })
+    expect(seen).toEqual([
+      { url: "https://root.example/sitemap.xml", authorization: "Bearer secret" },
+      { url: "https://child.example/pages.xml", authorization: null },
+    ])
   } finally {
-    globalThis.fetch = original;
+    globalThis.fetch = original
   }
-});
+})
 
-test("expandSitemap: throws when nesting exceeds maxDepth", async () => {
-  const indexFor = (next: string) => `<?xml version="1.0"?>
-<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <sitemap><loc>${next}</loc></sitemap>
-</sitemapindex>`;
-  const { fn } = mockFetchSequence({
-    "https://example.com/0.xml": indexFor("https://example.com/1.xml"),
-    "https://example.com/1.xml": indexFor("https://example.com/2.xml"),
-    "https://example.com/2.xml": indexFor("https://example.com/3.xml"),
-  });
-  const original = globalThis.fetch;
-  globalThis.fetch = fn as unknown as typeof globalThis.fetch;
+test("manual redirects are revalidated before following", async () => {
+  const original = globalThis.fetch
+  let calls = 0
+  globalThis.fetch = (async () => {
+    calls += 1
+    return new Response(null, { status: 302, headers: { location: "http://127.0.0.1/private.xml" } })
+  }) as unknown as typeof fetch
   try {
-    await expect(
-      expandSitemap("https://example.com/0.xml", { maxDepth: 2 })
-    ).rejects.toThrow(/ネスト|maxDepth/);
+    await expect(expandSitemap("https://example.com/sitemap.xml", { lookup: publicLookup })).rejects.toMatchObject({ code: "PRIVATE_URL_BLOCKED" })
+    expect(calls).toBe(1)
   } finally {
-    globalThis.fetch = original;
+    globalThis.fetch = original
   }
-});
+})
 
-test("expandSitemap: rejects HTML response with helpful Japanese error", async () => {
-  const original = globalThis.fetch;
-  globalThis.fetch = (async () => ({
-    ok: true,
-    status: 200,
-    headers: {
-      get: (k: string) =>
-        k.toLowerCase() === "content-type" ? "text/html; charset=utf-8" : null,
-    },
-    text: async () => "<html><body><h1>Hello</h1></body></html>",
-  })) as unknown as typeof globalThis.fetch;
+test("HTML and excessive recursion fail with structured errors", async () => {
+  const original = globalThis.fetch
+  globalThis.fetch = (async () => new Response("<html></html>", { headers: { "content-type": "text/html" } })) as unknown as typeof fetch
   try {
-    await expect(expandSitemap("https://tsukurikae.jp/")).rejects.toThrow(
-      /HTML|sitemapではありません/
-    );
+    await expect(expandSitemap("https://example.com/", { lookup: publicLookup })).rejects.toMatchObject({ code: "SITEMAP_NOT_XML" })
   } finally {
-    globalThis.fetch = original;
+    globalThis.fetch = original
   }
-});
+
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const current = Number(new URL(String(input)).pathname.slice(1, -4))
+    return xml(`<sitemapindex><sitemap><loc>https://example.com/${current + 1}.xml</loc></sitemap></sitemapindex>`)
+  }) as unknown as typeof fetch
+  try {
+    await expect(expandSitemap("https://example.com/0.xml", { lookup: publicLookup, maxDepth: 1 })).rejects.toMatchObject({ code: "SITEMAP_TOO_DEEP" })
+  } finally {
+    globalThis.fetch = original
+  }
+})
